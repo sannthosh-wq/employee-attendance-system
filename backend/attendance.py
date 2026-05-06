@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Attendance
-from datetime import datetime, date
+from datetime import datetime, date, time, timedelta
 from deps import get_current_user
 
-router = APIRouter(prefix="/attendance")
+router = APIRouter(
+    prefix="/attendance",
+    tags=["Attendance"]
+)
 
+# ---------------- DB SESSION ----------------
 def get_db():
     db = SessionLocal()
     try:
@@ -14,51 +18,133 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/punch-in")
-def punch_in(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
-    today = date.today()
 
+# ---------------- HELPER ----------------
+def is_within_shift(current_time, start, end):
+    """
+    Handles normal + overnight shift ranges
+    (e.g., 21:00 to 06:00)
+    """
+    if start < end:
+        return start <= current_time <= end
+    return current_time >= start or current_time <= end
+
+
+# ---------------- PUNCH IN ----------------
+@router.post("/punch-in")
+def punch_in(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    today = date.today()
+    now = datetime.now()
+    current_time = now.time()
+
+    # prevent duplicate punch-in
     existing = db.query(Attendance).filter(
         Attendance.employee_id == current_user.id,
-        Attendance.date == today
+        Attendance.date == today,
+        Attendance.logout_time == None
     ).first()
 
-    if existing and existing.logout_time is None:
-        raise HTTPException(status_code=400, detail="Already punched in. Please punch out first.")
+    if existing:
+        raise HTTPException(status_code=400, detail="Already punched in")
+
+    # shift logic
+    if current_user.shift == "morning":
+        shift_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        start = time(9, 0)
+        end = time(18, 0)
+
+    elif current_user.shift == "night":
+        shift_start = now.replace(hour=21, minute=0, second=0, microsecond=0)
+        start = time(21, 0)
+        end = time(6, 0)
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid shift")
+
+    # validate shift window
+    if not is_within_shift(current_time, start, end):
+        raise HTTPException(
+            status_code=400,
+            detail="Outside allowed shift hours"
+        )
+
+    # grace period (15 min)
+    grace_time = shift_start + timedelta(minutes=15)
+    is_late = now > grace_time
 
     record = Attendance(
         employee_id=current_user.id,
         date=today,
-        login_time=datetime.now()
+        login_time=now,
+        is_late=is_late
     )
 
     db.add(record)
     db.commit()
 
-    return {"message": "Punch in successful"}
+    return {
+        "message": "Punch in successful",
+        "is_late": is_late
+    }
 
+
+# ---------------- PUNCH OUT ----------------
 @router.post("/punch-out")
-def punch_out(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+def punch_out(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
     today = date.today()
 
     record = db.query(Attendance).filter(
         Attendance.employee_id == current_user.id,
+        Attendance.date == today,
         Attendance.logout_time == None
     ).first()
 
-    if not record or record.logout_time:
-        raise HTTPException(status_code=400, detail="No active session")
+    if not record:
+        raise HTTPException(status_code=400, detail="No active session found")
 
     now = datetime.now()
     record.logout_time = now
     record.total_hours = now - record.login_time
 
+    # shift end logic
+    if current_user.shift == "morning":
+        shift_end = record.login_time.replace(
+            hour=18, minute=0, second=0, microsecond=0
+        )
+
+    elif current_user.shift == "night":
+        shift_end = (record.login_time + timedelta(days=1)).replace(
+            hour=6, minute=0, second=0, microsecond=0
+        )
+
+    else:
+        shift_end = now
+
+    record.left_early = now < shift_end
+
     db.commit()
 
-    return {"message": "Punch out successful"}
+    return {
+        "message": "Punch out successful",
+        "left_early": record.left_early
+    }
 
+
+# ---------------- ATTENDANCE HISTORY ----------------
 @router.get("/my-attendance")
-def my_attendance(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+def my_attendance(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
     return db.query(Attendance).filter(
         Attendance.employee_id == current_user.id
     ).all()

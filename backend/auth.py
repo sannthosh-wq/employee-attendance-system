@@ -6,7 +6,10 @@ from schemas import RegisterSchema, LoginSchema
 from utils import hash_password, verify_password
 from jwt_handler import create_access_token
 
-router = APIRouter(prefix="/auth")
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"]
+)
 
 def get_db():
     db = SessionLocal()

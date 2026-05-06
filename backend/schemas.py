@@ -24,3 +24,21 @@ class ShiftUpdateSchema(BaseModel):
 
 class RoleUpdateSchema(BaseModel):
     role: str
+    
+class LeaveCreateSchema(BaseModel):
+    start_date: date
+    end_date: date
+    reason: str
+
+class LeaveStatusUpdateSchema(BaseModel):
+    status: str
+
+class LeaveResponse(BaseModel):
+    id: int
+    start_date: date
+    end_date: date
+    reason: str
+    status: str
+
+    class Config:
+        from_attributes = True
