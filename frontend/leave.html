@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Leave Management</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+
+    <h2>EMS</h2>
+
+    <a href="dashboard.html">🏠 Dashboard</a>
+
+    <a href="attendance.html">🕒 Attendance</a>
+
+    <a href="leave.html">📄 Leave</a>
+
+    <a href="monthly-summary.html">📊 Monthly</a>
+
+    <a href="admin.html">⚙️ Admin</a>
+
+    <a href="#" onclick="logout()">🚪 Logout</a>
+
+</div>
+
+<div class="main-content">
+
+
+    <div class="dashboard">
+
+        <h2>Leave Management</h2>
+
+        <!-- APPLY LEAVE -->
+
+        <div class="card">
+
+            <h3>Apply Leave</h3>
+
+            <br>
+
+            <label>Start Date</label>
+            <input type="date" id="startDate">
+
+            <label>End Date</label>
+            <input type="date" id="endDate">
+
+            <label>Reason</label>
+            <input type="text" id="reason" placeholder="Enter reason">
+
+            <button onclick="applyLeave()">
+                Apply Leave
+            </button>
+
+        </div>
+
+
+        <!-- MY LEAVES -->
+
+        <div class="card">
+
+            <h3>My Leaves</h3>
+
+            <table border="1" width="100%" cellpadding="10">
+
+                <thead>
+
+                    <tr>
+                        <th>ID</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                    </tr>
+
+                </thead>
+
+                <tbody id="leaveTable">
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/leave.js"></script>
+
+</body>
+</html>

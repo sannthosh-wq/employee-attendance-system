@@ -4,6 +4,7 @@ from database import SessionLocal
 from models import Attendance
 from datetime import datetime, date, time, timedelta
 from deps import get_current_user
+from schemas import AttendanceResponse
 
 router = APIRouter(
     prefix="/attendance",
@@ -139,12 +140,27 @@ def punch_out(
 
 
 # ---------------- ATTENDANCE HISTORY ----------------
-@router.get("/my-attendance")
+@router.get("/my-attendance", response_model=list[AttendanceResponse])
 def my_attendance(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
 
-    return db.query(Attendance).filter(
+    records = db.query(Attendance).filter(
         Attendance.employee_id == current_user.id
     ).all()
+
+    result = []
+
+    for record in records:
+
+        result.append({
+            "date": record.date,
+            "login_time": record.login_time,
+            "logout_time": record.logout_time,
+            "total_hours": str(record.total_hours) if record.total_hours else None,
+            "is_late": record.is_late,
+            "left_early": record.left_early
+        })
+
+    return result

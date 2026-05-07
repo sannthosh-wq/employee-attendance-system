@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+
+    <h2>EMS</h2>
+
+    <a href="dashboard.html">🏠 Dashboard</a>
+
+    <a href="attendance.html">🕒 Attendance</a>
+
+    <a href="leave.html">📄 Leave</a>
+
+    <a href="monthly-summary.html">📊 Monthly</a>
+
+    <a href="admin.html">⚙️ Admin</a>
+
+    <a href="#" onclick="logout()">🚪 Logout</a>
+
+</div>
+
+<div class="main-content">
+
+
+    <div class="dashboard">
+
+        <h2>Admin Dashboard</h2>
+
+        <!-- Summary Cards -->
+        <div class="cards">
+
+            <div class="card">
+                <h3>Total Employees</h3>
+                <p id="totalEmployees">0</p>
+            </div>
+
+            <div class="card">
+                <h3>Present Today</h3>
+                <p id="presentToday">0</p>
+            </div>
+
+            <div class="card">
+                <h3>On Leave</h3>
+                <p id="onLeaveToday">0</p>
+            </div>
+
+            <div class="card">
+                <h3>Absent</h3>
+                <p id="absentToday">0</p>
+            </div>
+
+    </div>
+
+    <div class="card">
+        <h3>Attendance Analytics</h3>
+        <canvas id="attendanceChart" width="50px" height="50px" style="display: block; box-sizing: border-box; height: 100.2px; width: 100.2px;">
+    </div>
+
+    
+
+    <div class="table-card">
+
+        <h3>Leave Requests</h3>
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Employee ID</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="leaveTable">
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        <!-- Employee Table -->
+        <div class="card">
+
+            <h3>Employees</h3>
+
+            <table border="1" width="100%" cellpadding="10">
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Shift</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="employeeTable">
+
+                </tbody>
+
+            </table>
+
+    </div>
+
+        <!-- EMPLOYEE MANAGEMENT -->
+
+        <div class="card">
+
+            <h3>Employee Management</h3>
+
+            <br>
+
+            <input type="number" id="employeeId" placeholder="Employee ID">
+
+            <select id="role">
+                <option value="">Select Role</option>
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+                <option value="developer">Developer</option>
+            </select>
+
+            <select id="shift">
+                <option value="">Select Shift</option>
+                <option value="morning">Morning</option>
+                <option value="night">Night</option>
+            </select>
+
+            <br><br>
+
+            <button onclick="updateRole()">
+                Update Role
+            </button>
+
+            <br><br>
+
+            <button onclick="updateShift()">
+                Update Shift
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</body>
+</html>

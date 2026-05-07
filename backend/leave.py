@@ -5,6 +5,7 @@ from models import Leave
 from deps import get_current_user
 from schemas import LeaveCreateSchema, LeaveStatusUpdateSchema
 from datetime import datetime, date
+from schemas import LeaveResponse
 
 router = APIRouter(
     prefix="/leave",
@@ -67,7 +68,7 @@ def apply_leave(
 
 
 # ---------------- EMPLOYEE: MY LEAVES ----------------
-@router.get("/my-leaves")
+@router.get("/my-leaves", response_model=list[LeaveResponse])
 def my_leaves(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)

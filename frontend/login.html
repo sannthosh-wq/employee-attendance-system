@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="auth-page">
+
+<div class="container">
+
+    <h2>Sign In</h2>
+
+    <!-- LOGIN SWITCH -->
+    <div class="login-switch">
+        <button id="employeeBtn" class="active" onclick="setLoginType('employee')">
+            Employee Login
+        </button>
+
+        <button id="adminBtn" onclick="setLoginType('admin')">
+            Admin Login
+        </button>
+    </div>
+
+    <input type="email" id="email" placeholder="Enter Email">
+    <input type="password" id="password" placeholder="Enter Password">
+
+    <button onclick="login()">SIGN IN</button>
+
+    <p>
+        Don't have account?
+        <a href="register.html">Register</a>
+    </p>
+
+</div>
+
+<script src="js/login.js"></script>
+
+</body>
+</html>

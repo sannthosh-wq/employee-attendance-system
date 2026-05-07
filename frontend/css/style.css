@@ -1,0 +1,430 @@
+/* =========================
+    HRMS ENTERPRISE DESIGN SYSTEM
+========================= */
+
+:root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --text: #111827;
+    --muted: #6b7280;
+
+    --border: #e5e7eb;
+
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-hover: 0 6px 18px rgba(0,0,0,0.10);
+
+    --radius: 10px;
+}
+
+/* =========================
+    GLOBAL
+========================= */
+body {
+    margin: 0;
+    font-family: "Inter", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    
+}
+
+/* =========================
+    SIDEBAR
+========================= */
+.sidebar {
+    width: 250px;
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+
+    background: #111827;
+    color: white;
+
+    padding: 20px 0;
+}
+
+.sidebar h2 {
+    text-align: center;
+    font-size: 16px;
+    margin-bottom: 25px;
+    letter-spacing: 1px;
+}
+
+.sidebar a {
+    display: block;
+    padding: 12px 20px;
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 14px;
+
+    border-left: 3px solid transparent;
+    transition: 0.2s ease;
+}
+
+.sidebar a:hover {
+    background: rgba(255,255,255,0.06);
+    color: white;
+    border-left: 3px solid var(--primary);
+}
+
+/* Active link */
+.sidebar a.active {
+    background: rgba(37,99,235,0.15);
+    border-left: 3px solid var(--primary);
+    color: white;
+}
+
+/* =========================
+    MAIN CONTENT
+========================= */
+.main-content {
+    margin-left: 250px;
+    padding: 28px;
+}
+
+/* =========================
+    CARDS
+========================= */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+
+    box-shadow: var(--shadow);
+    transition: 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-hover);
+}
+
+/* KPI highlight */
+.card.kpi {
+    border-left: 4px solid var(--primary);
+}
+
+/* =========================
+    INPUTS
+========================= */
+input, select {
+    width: 100%;
+    padding: 11px 12px;
+
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+
+    font-size: 14px;
+    background: white;
+
+    transition: 0.2s ease;
+}
+
+input:focus, select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+/* =========================
+    BUTTONS
+========================= */
+button {
+    width: 100%;
+    padding: 11px;
+
+    border: none;
+    border-radius: var(--radius);
+
+    background: var(--primary);
+    color: white;
+
+    font-size: 14px;
+    cursor: pointer;
+
+    transition: 0.2s ease;
+}
+
+button:hover {
+    background: var(--primary-hover);
+}
+
+button.secondary {
+    background: #374151;
+}
+
+button.danger {
+    background: var(--danger);
+}
+
+/* =========================
+    TABLES
+========================= */
+table {
+    width: 100%;
+    border-collapse: collapse;
+
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+thead {
+    background: #f3f4f6;
+}
+
+th {
+    text-align: left;
+    padding: 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    padding: 12px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+tr:hover {
+    background: #f9fafb;
+}
+
+/* =========================
+    BADGES
+========================= */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 999px;
+    font-weight: 500;
+}
+
+.badge.success {
+    background: #ecfdf5;
+    color: var(--success);
+}
+
+.badge.warning {
+    background: #fffbeb;
+    color: var(--warning);
+}
+
+.badge.danger {
+    background: #fef2f2;
+    color: var(--danger);
+}
+
+/* =========================
+    TABLE ACTION BUTTONS
+========================= */
+td button {
+    width: auto;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+td .approve {
+    background: var(--success);
+    color: white;
+}
+
+td .reject {
+    background: var(--danger);
+    color: white;
+}
+
+/* =========================
+    🔥 COMPACT ATTENDANCE ANALYTICS
+========================= */
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+/* Small KPI analytics cards */
+.analytics-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+
+    padding: 14px;
+    min-height: 85px;
+
+    box-shadow: var(--shadow);
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.analytics-card h4 {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+}
+
+.analytics-value {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.analytics-trend {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.analytics-trend.up {
+    color: var(--success);
+}
+
+.analytics-trend.down {
+    color: var(--danger);
+}
+
+/* =========================
+    SMALL CHART BOX (IMPORTANT FIX)
+========================= */
+.chart-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+
+    padding: 12px;
+
+    height: 220px;
+    max-height: 220px;
+
+    overflow: hidden;
+}
+
+.chart-box canvas {
+    max-height: 180px !important;
+}
+
+/* =========================
+    RESPONSIVE
+========================= */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 15px;
+    }
+}
+
+/* =========================
+    LOGIN SWITCH BUTTONS
+========================= */
+
+.login-switch {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.login-switch button {
+    flex: 1;
+    background: #e5e7eb;
+    color: #111827;
+    font-weight: 600;
+}
+
+.login-switch button.active {
+    background: var(--primary);
+    color: white;
+}
+
+/* =========================
+    AUTH PAGES (LOGIN / REGISTER)
+========================= */
+
+.container {
+    width: 100%;
+    max-width: 420px;
+    margin: 80px auto;
+    padding: 30px;
+
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-hover);
+
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.container h2 {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+/* Login Switch */
+.login-switch {
+    display: flex;
+    background: #f3f4f6;
+    padding: 4px;
+    border-radius: var(--radius);
+}
+
+.login-switch button {
+    flex: 1;
+    padding: 10px;
+    font-weight: 600;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+}
+
+.login-switch button.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: var(--shadow);
+}
+
+/* Register link */
+.container p {
+    text-align: center;
+    font-size: 14px;
+}
+
+.container a {
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.container a:hover {
+    text-decoration: underline;
+}
+
+/* =========================
+    AUTH PAGE LAYOUT ONLY
+========================= */
+
+.auth-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}

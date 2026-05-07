@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+
+    <h2>EMS</h2>
+
+    <a href="dashboard.html">🏠 Dashboard</a>
+
+    <a href="attendance.html">🕒 Attendance</a>
+
+    <a href="leave.html">📄 Leave</a>
+
+    <a href="monthly-summary.html">📊 Monthly</a>
+
+    <a href="admin.html">⚙️ Admin</a>
+
+    <a href="#" onclick="logout()">🚪 Logout</a>
+
+</div>
+
+<div class="main-content">
+
+
+    <div class="dashboard">
+
+        <h2>Employee Dashboard</h2>
+
+        <div class="card">
+            <h3 id="name"></h3>
+            <p id="email"></p>
+            <p id="role"></p>
+            <p id="shift"></p>
+        </div>
+
+        <div class="card">
+            <button onclick="punchIn()">Punch In</button>
+            <br><br>
+            <button onclick="punchOut()">Punch Out</button>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

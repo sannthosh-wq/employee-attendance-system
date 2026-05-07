@@ -16,6 +16,9 @@ class AttendanceResponse(BaseModel):
     logout_time: datetime | None
     total_hours: str | None
 
+    is_late: bool
+    left_early: bool
+
     class Config:
         from_attributes = True
         
