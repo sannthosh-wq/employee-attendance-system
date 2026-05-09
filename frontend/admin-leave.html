@@ -1,19 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Employee Apply Leave</title>
+    <title>Admin Apply Leave</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <div class="sidebar">
     <h2>EMS</h2>
-    <a href="dashboard.html">Employee Dashboard</a>
-    <a href="employee-profile.html">Profile</a>
-    <a href="punch.html">Punch In / Punch Out</a>
-    <a href="attendance.html">Employee Attendance History</a>
-    <a href="leave.html" class="active">Employee Apply Leave</a>
-    <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html" class="active">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
@@ -21,12 +27,12 @@
     <div class="dashboard">
         <div class="page-header">
             <div>
-                <h1>Employee Apply Leave</h1>
-                <p>Apply leave and track your leave status.</p>
+                <h1>Admin Apply Leave</h1>
+                <p>Apply leave and track approval from the super admin.</p>
             </div>
         </div>
 
-        <div class="card" id="apply-leave">
+        <div class="card">
             <h3>Apply Leave</h3>
             <label>Start Date</label>
             <input type="date" id="startDate">
@@ -41,7 +47,7 @@
         </div>
 
         <div class="card table-card">
-            <h3>My Leaves</h3>
+            <h3>My Admin Leaves</h3>
             <div class="table-wrap">
                 <table>
                     <thead>

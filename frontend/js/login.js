@@ -40,12 +40,12 @@ async function login() {
         const payload = JSON.parse(atob(data.access_token.split(".")[1]));
 
         // 🔥 role validation
-        if (loginType === "admin" && payload.role !== "admin") {
+        if (loginType === "admin" && !["admin", "super_admin"].includes(payload.role)) {
             alert("This is not an admin account");
             return;
         }
 
-        if (loginType === "employee" && payload.role === "admin") {
+        if (loginType === "employee" && ["admin", "super_admin"].includes(payload.role)) {
             alert("Please use Admin Login");
             return;
         }
@@ -54,7 +54,7 @@ async function login() {
 
         alert("Login Successful");
 
-        if(payload.role === "admin"){
+        if(["admin", "super_admin"].includes(payload.role)){
             window.location.href = "admin.html";
         }
         else{

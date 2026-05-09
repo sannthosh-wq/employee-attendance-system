@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Present Absent Leave Today</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html" class="active">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Present / Absent / Leave Today</h1>
+            <p>Who is present, absent, and on leave today.</p>
+        </div>
+    </div>
+
+    <div class="dashboard-grid three-columns">
+        <div class="card status-list">
+            <h3>Who Is Present Today</h3>
+            <ul id="presentList"></ul>
+        </div>
+        <div class="card status-list">
+            <h3>Who Is Absent Today</h3>
+            <ul id="absentList"></ul>
+        </div>
+        <div class="card status-list">
+            <h3>Who Is On Leave Today</h3>
+            <ul id="leaveList"></ul>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

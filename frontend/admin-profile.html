@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Profile</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html" class="active">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Admin Profile</h1>
+            <p>Your admin account details.</p>
+        </div>
+        <span class="badge success" id="adminTodayStatus">Admin</span>
+    </div>
+
+    <div class="card profile-card">
+        <h3>Admin Profile</h3>
+        <div class="profile-name" id="adminName">-</div>
+        <p id="adminEmail">-</p>
+        <p id="adminId">Admin ID: -</p>
+        <p id="adminRole">Role: -</p>
+        <p id="adminShift">Shift: -</p>
+    </div>
+
+    <div class="card" id="adminMonthlySummarySection">
+        <div class="section-heading">
+            <h3>Monthly Attendance Summary</h3>
+            <span class="badge success" id="adminMonthlySummaryLabel">This Month</span>
+        </div>
+        <div class="form-grid">
+            <div>
+                <label>Month</label>
+                <input type="number" id="adminSummaryMonth" min="1" max="12" onchange="loadAdminMonthlySummary()">
+            </div>
+            <div>
+                <label>Year</label>
+                <input type="number" id="adminSummaryYear" min="2000" max="2100" onchange="loadAdminMonthlySummary()">
+            </div>
+        </div>
+        <div class="analytics-grid attendance-summary-grid">
+            <div class="analytics-card">
+                <h4>Total Attendance Days</h4>
+                <div class="analytics-value" id="adminTotalAttendanceDays">0</div>
+                <div class="analytics-trend">All recorded days</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Approved Leave Days</h4>
+                <div class="analytics-value" id="adminApprovedLeaveDays">0</div>
+                <div class="analytics-trend">Approved leave only</div>
+            </div>
+            <div class="analytics-card">
+                <h4>This Month Present</h4>
+                <div class="analytics-value" id="adminMonthPresentDays">0</div>
+                <div class="analytics-trend">Selected month</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Attendance Percentage</h4>
+                <div class="analytics-value" id="adminAttendancePercentage">0%</div>
+                <div class="analytics-trend">Selected month</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card table-card" id="adminOwnAttendanceSection">
+        <div class="section-heading">
+            <h3>Admin Attendance History</h3>
+            <span class="badge success" id="adminAttendanceCount">0 Records</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Login Time</th>
+                        <th>Logout Time</th>
+                        <th>Total Hours</th>
+                        <th>Late</th>
+                        <th>Left Early</th>
+                    </tr>
+                </thead>
+                <tbody id="adminOwnAttendanceTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

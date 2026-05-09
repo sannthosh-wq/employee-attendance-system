@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance History</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html" class="active">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Attendance History</h1>
+            <p>Attendance records for employees and admins by day, week, month, or year.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-heading">
+            <h3>Attendance Filter</h3>
+            <span class="badge" id="attendanceFilterLabel">Day</span>
+        </div>
+
+        <div class="status-tabs">
+            <button type="button" class="secondary active" id="attendanceDayBtn" onclick="filterAttendanceHistory('day')">Day</button>
+            <button type="button" class="secondary" id="attendanceWeekBtn" onclick="filterAttendanceHistory('week')">Week</button>
+            <button type="button" class="secondary" id="attendanceMonthBtn" onclick="filterAttendanceHistory('month')">Month</button>
+            <button type="button" class="secondary" id="attendanceYearBtn" onclick="filterAttendanceHistory('year')">Year</button>
+        </div>
+
+        <div class="form-grid attendance-filter-grid">
+            <div>
+                <label>Search Employee</label>
+                <input type="search" id="attendanceEmployeeSearch" placeholder="Name, email, ID, role, or shift" oninput="renderAllAttendance()">
+            </div>
+            <div id="attendanceDayField">
+                <label>Particular Day</label>
+                <input type="date" id="attendanceDate" onchange="renderAllAttendance()">
+            </div>
+            <div id="attendanceWeekField">
+                <label>Week</label>
+                <input type="week" id="attendanceWeek" onchange="renderAllAttendance()">
+            </div>
+            <div id="attendanceMonthField">
+                <label>Month</label>
+                <input type="month" id="attendanceMonth" onchange="renderAllAttendance()">
+            </div>
+            <div id="attendanceYearField">
+                <label>Year</label>
+                <input type="number" id="attendanceYear" min="2000" max="2100" onchange="renderAllAttendance()">
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="attendanceSummaryCard">
+        <div class="section-heading">
+            <h3>Employee Period Summary</h3>
+            <span class="badge success" id="attendanceSummaryLabel">0 Hours</span>
+        </div>
+        <div class="analytics-grid attendance-summary-grid">
+            <div class="analytics-card">
+                <h4>Employees</h4>
+                <div class="analytics-value" id="attendanceEmployeeCount">0</div>
+                <div class="analytics-trend">Matched by search</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Total Hours Worked</h4>
+                <div class="analytics-value" id="attendanceTotalHours">0h 00m</div>
+                <div class="analytics-trend" id="attendancePeriodLabel">Selected day</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Late</h4>
+                <div class="analytics-value" id="attendanceLateCount">0</div>
+                <div class="analytics-trend">Records in period</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Left Early</h4>
+                <div class="analytics-value" id="attendanceEarlyCount">0</div>
+                <div class="analytics-trend">Completed records</div>
+            </div>
+        </div>
+        <div class="table-wrap attendance-breakdown-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Period</th>
+                        <th>Records</th>
+                        <th>Total Hours</th>
+                        <th>Late</th>
+                        <th>Left Early</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceBreakdownTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card table-card">
+        <div class="section-heading">
+            <h3>Filtered Records</h3>
+            <span class="badge success" id="attendanceRecordCount">0 Records</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Role</th>
+                        <th>Shift</th>
+                        <th>Joined</th>
+                        <th>Date</th>
+                        <th>Login Time</th>
+                        <th>Logout Time</th>
+                        <th>Total Hours</th>
+                        <th>Late</th>
+                        <th>Left Early</th>
+                    </tr>
+                </thead>
+                <tbody id="allAttendanceTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

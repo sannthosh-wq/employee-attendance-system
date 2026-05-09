@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance Analytics</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html" class="active">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="dashboard">
+        <div class="page-header">
+            <div>
+                <h1>Attendance Analytics</h1>
+                <p>Track daily performance, shift coverage, and monthly attendance quality.</p>
+            </div>
+            <span class="badge success" id="analyticsDateLabel">Today</span>
+        </div>
+
+        <div class="cards">
+            <div class="card kpi">
+                <h3>Total Employees</h3>
+                <p id="totalEmployees">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Present Today</h3>
+                <p id="presentToday">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Absent Today</h3>
+                <p id="absentToday">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>On Leave Today</h3>
+                <p id="onLeaveToday">0</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card chart-box">
+                <div class="section-heading">
+                    <h3>Today Attendance Mix</h3>
+                    <span class="badge" id="analyticsTotalLabel">0 Employees</span>
+                </div>
+                <canvas id="attendanceChart"></canvas>
+            </div>
+
+            <div class="card">
+                <div class="section-heading">
+                    <h3>Shift Coverage</h3>
+                    <span class="badge success">Live</span>
+                </div>
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h4>Morning Present</h4>
+                        <div class="analytics-value" id="analyticsMorningPresent">0</div>
+                        <div class="analytics-trend" id="analyticsMorningTotal">0 employees</div>
+                    </div>
+                    <div class="analytics-card">
+                        <h4>Night Present</h4>
+                        <div class="analytics-value" id="analyticsNightPresent">0</div>
+                        <div class="analytics-trend" id="analyticsNightTotal">0 employees</div>
+                    </div>
+                    <div class="analytics-card">
+                        <h4>Monthly Records</h4>
+                        <div class="analytics-value" id="monthlyAttendanceRecords">0</div>
+                        <div class="analytics-trend">Attendance entries</div>
+                    </div>
+                    <div class="analytics-card">
+                        <h4>Monthly Hours</h4>
+                        <div class="analytics-value" id="monthlyWorkingHours">0 hrs</div>
+                        <div class="analytics-trend">Total worked</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-heading">
+                <h3>Analytics Slicers</h3>
+                <span class="badge" id="analyticsMonthLabel">This Month</span>
+            </div>
+            <div class="form-grid analytics-filter-grid">
+                <div>
+                    <label>Month</label>
+                    <input type="number" id="analyticsMonth" min="1" max="12" onchange="loadAttendanceAnalytics()">
+                </div>
+                <div>
+                    <label>Year</label>
+                    <input type="number" id="analyticsYear" min="2000" max="2100" onchange="loadAttendanceAnalytics()">
+                </div>
+                <div>
+                    <label>Shift</label>
+                    <select id="analyticsShift" onchange="loadAttendanceAnalytics()">
+                        <option value="all">All Shifts</option>
+                        <option value="morning">Morning</option>
+                        <option value="night">Night</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Role</label>
+                    <select id="analyticsRole" onchange="loadAttendanceAnalytics()">
+                        <option value="all">All Roles</option>
+                        <option value="employee">Employee</option>
+                        <option value="admin">Admin</option>
+                        <option value="super_admin">Super Admin</option>
+                        <option value="developer">Developer</option>
+                        <option value="frontend_developer">Frontend Developer</option>
+                        <option value="backend_developer">Backend Developer</option>
+                        <option value="data_analyst">Data Analyst</option>
+                        <option value="data_scientist">Data Scientist</option>
+                        <option value="ml_developer">ML Developer</option>
+                        <option value="software_engineer">Software Engineer</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Employee</label>
+                    <select id="analyticsEmployee" onchange="loadAttendanceAnalytics()">
+                        <option value="all">All Employees</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-grid">
+            <div class="analytics-card">
+                <h4>Filtered Employees</h4>
+                <div class="analytics-value" id="analyticsFilteredEmployees">0</div>
+                <div class="analytics-trend">Current slicer result</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Avg Attendance</h4>
+                <div class="analytics-value" id="analyticsAverageAttendance">0%</div>
+                <div class="analytics-trend">Selected month</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Total Hours</h4>
+                <div class="analytics-value" id="analyticsFilteredHours">0h 00m</div>
+                <div class="analytics-trend">Selected month</div>
+            </div>
+            <div class="analytics-card">
+                <h4>Late / Early</h4>
+                <div class="analytics-value" id="analyticsLateEarly">0 / 0</div>
+                <div class="analytics-trend">Selected month</div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card chart-box analytics-chart-card">
+                <h3>Attendance Percentage Ranking</h3>
+                <canvas id="monthlyAttendanceChart"></canvas>
+            </div>
+
+            <div class="card table-card">
+                <div class="section-heading">
+                    <h3>Best Attendance</h3>
+                    <span class="badge success" id="bestAttendanceCount">Top 5</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Shift</th>
+                                <th>Joined</th>
+                                <th>Present</th>
+                                <th>Leave</th>
+                                <th>Attendance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bestAttendanceTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card chart-box analytics-chart-card">
+                <h3>Daily Attendance Trend</h3>
+                <canvas id="attendanceTrendChart"></canvas>
+            </div>
+            <div class="card chart-box analytics-chart-card">
+                <h3>Daily Working Hours</h3>
+                <canvas id="hoursTrendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card chart-box analytics-chart-card">
+                <h3>Late vs Left Early</h3>
+                <canvas id="lateEarlyChart"></canvas>
+            </div>
+            <div class="card chart-box analytics-chart-card">
+                <h3>Shift Attendance Split</h3>
+                <canvas id="shiftSplitChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card" id="employeeAnalyticsCard">
+            <div class="section-heading">
+                <h3>Employee Analytics</h3>
+                <span class="badge success" id="employeeAnalyticsName">All Employees</span>
+            </div>
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h4>Attendance</h4>
+                    <div class="analytics-value" id="employeeAttendancePercent">0%</div>
+                    <div class="analytics-trend">Selected month</div>
+                </div>
+                <div class="analytics-card">
+                    <h4>Present / Leave</h4>
+                    <div class="analytics-value" id="employeePresentLeave">0 / 0</div>
+                    <div class="analytics-trend">Days</div>
+                </div>
+                <div class="analytics-card">
+                    <h4>Total Hours</h4>
+                    <div class="analytics-value" id="employeeTotalHours">0h 00m</div>
+                    <div class="analytics-trend">Worked</div>
+                </div>
+                <div class="analytics-card">
+                    <h4>Late / Early</h4>
+                    <div class="analytics-value" id="employeeLateEarly">0 / 0</div>
+                    <div class="analytics-trend">Records</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card chart-box analytics-chart-card">
+                <h3>Employee Daily Hours</h3>
+                <canvas id="employeeHoursChart"></canvas>
+            </div>
+            <div class="card table-card">
+                <div class="section-heading">
+                    <h3>Employee Attendance Records</h3>
+                    <span class="badge" id="employeeRecordCount">0 Records</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Login</th>
+                                <th>Logout</th>
+                                <th>Hours</th>
+                                <th>Late</th>
+                                <th>Left Early</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeAnalyticsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>Low Attendance Warnings</h3>
+                <span class="badge warning" id="lowAttendanceCount">0 Warnings</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Present Days</th>
+                            <th>Effective Days</th>
+                            <th>Attendance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lowAttendanceTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>Employee BI Detail</h3>
+                <span class="badge success" id="analyticsDetailCount">0 Rows</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Role</th>
+                            <th>Shift</th>
+                            <th>Joined</th>
+                            <th>Present</th>
+                            <th>Leave</th>
+                            <th>Effective Days</th>
+                            <th>Attendance</th>
+                            <th>Hours</th>
+                            <th>Late</th>
+                            <th>Left Early</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analyticsDetailTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

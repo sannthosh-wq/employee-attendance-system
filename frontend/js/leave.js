@@ -1,121 +1,121 @@
 const token = localStorage.getItem("token");
+const API_BASE = "http://127.0.0.1:8000";
 
 if (!token) {
     window.location.href = "login.html";
 }
 
-loadLeaves();
+document.addEventListener("DOMContentLoaded", async () => {
+    if (await redirectSuperAdminLeavePage()) return;
+    loadLeaves();
+});
 
+async function apiRequest(path, options = {}) {
+    const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            ...(options.headers || {})
+        }
+    });
 
-// ================= APPLY LEAVE =================
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(data.detail || "Something went wrong");
+    }
+
+    return data;
+}
+
+async function redirectSuperAdminLeavePage() {
+    try {
+        const user = await apiRequest("/employee/dashboard");
+
+        if (user.role === "super_admin" && window.location.pathname.endsWith("/admin-leave.html")) {
+            window.location.href = "admin.html";
+            return true;
+        }
+
+        const applyLeaveCard = document.getElementById("apply-leave");
+        if (applyLeaveCard && (!user.role || !user.shift)) {
+            applyLeaveCard.style.display = "none";
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+
+    return false;
+}
 
 async function applyLeave() {
-
-    const start_date = document.getElementById("startDate").value;
-
-    const end_date = document.getElementById("endDate").value;
-
-    const reason = document.getElementById("reason").value;
+    const start_date = getValue("startDate");
+    const end_date = getValue("endDate");
+    const reason = getValue("reason");
 
     if (!start_date || !end_date || !reason) {
         alert("Please fill all fields");
         return;
     }
 
-    const response = await fetch(
-        "http://127.0.0.1:8000/leave/apply",
-        {
+    try {
+        const data = await apiRequest("/leave/apply", {
             method: "POST",
+            body: JSON.stringify({ start_date, end_date, reason })
+        });
 
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-
-            body: JSON.stringify({
-                start_date,
-                end_date,
-                reason
-            })
-        }
-    );
-
-    const data = await response.json();
-
-    if (response.ok) {
-
-        alert(data.message);
-
-        document.getElementById("startDate").value = "";
-
-        document.getElementById("endDate").value = "";
-
-        document.getElementById("reason").value = "";
-
+        alert(`${data.message}. Total days: ${data.total_days}`);
+        setValue("startDate", "");
+        setValue("endDate", "");
+        setValue("reason", "");
         loadLeaves();
-
-    } else {
-
-        alert(data.detail);
+    } catch (error) {
+        alert(error.message);
     }
 }
-
-
-
-// ================= LOAD LEAVES =================
 
 async function loadLeaves() {
+    try {
+        const data = await apiRequest("/leave/my-leaves");
+        const table = document.getElementById("leaveTable");
 
-    const response = await fetch(
-        "http://127.0.0.1:8000/leave/my-leaves",
-        {
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
+        if (!table) return;
+
+        table.innerHTML = "";
+
+        data.forEach(leave => {
+            table.innerHTML += `
+                <tr>
+                    <td>${leave.id}</td>
+                    <td>${leave.start_date}</td>
+                    <td>${leave.end_date}</td>
+                    <td>${leave.reason}</td>
+                    <td>${formatStatus(leave.status)}</td>
+                </tr>
+            `;
+        });
+
+        if (!table.innerHTML) {
+            table.innerHTML = `<tr><td colspan="5" class="muted">No leave requests found</td></tr>`;
         }
-    );
-
-    const data = await response.json();
-
-    const table = document.getElementById("leaveTable");
-
-    table.innerHTML = "";
-
-    data.forEach(leave => {
-
-        table.innerHTML += `
-
-        <tr>
-
-            <td>${leave.id}</td>
-
-            <td>${leave.start_date}</td>
-
-            <td>${leave.end_date}</td>
-
-            <td>${leave.reason}</td>
-
-            <td>${formatStatus(leave.status)}</td>
-
-        </tr>
-
-        `;
-    });
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
-
-
-// ================= STATUS COLOR =================
-
 function formatStatus(status) {
+    if (status === "approved") return `<span class="badge success">Approved</span>`;
+    if (status === "rejected") return `<span class="badge danger">Rejected</span>`;
+    return `<span class="badge warning">Pending</span>`;
+}
 
-    if (status === "approved") {
-        return `<span style="color:green;font-weight:bold;">Approved</span>`;
-    }
+function getValue(id) {
+    const element = document.getElementById(id);
+    return element ? element.value.trim() : "";
+}
 
-    if (status === "rejected") {
-        return `<span style="color:red;font-weight:bold;">Rejected</span>`;
-    }
-
-    return `<span style="color:orange;font-weight:bold;">Pending</span>`;
+function setValue(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.value = value;
 }

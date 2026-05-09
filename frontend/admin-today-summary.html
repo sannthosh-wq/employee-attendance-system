@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Today Summary</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html" class="active">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Today Summary</h1>
+            <p>View today's attendance summary by shift.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-heading">
+            <h3>Shift Filter</h3>
+            <span class="badge" id="summaryShiftLabel">Morning Shift</span>
+        </div>
+        <div class="status-tabs" id="todayShiftFilter">
+            <button type="button" class="secondary active" id="summaryMorningBtn" onclick="filterTodaySummaryShift('morning')">Morning</button>
+            <button type="button" class="secondary" id="summaryNightBtn" onclick="filterTodaySummaryShift('night')">Night</button>
+        </div>
+    </div>
+
+    <div class="cards">
+        <div class="card kpi">
+            <h3>Total Employees</h3>
+            <p id="totalEmployees">0</p>
+        </div>
+        <div class="card kpi">
+            <h3>Present Today</h3>
+            <p id="presentToday">0</p>
+        </div>
+        <div class="card kpi">
+            <h3>Absent Today</h3>
+            <p id="absentToday">0</p>
+        </div>
+        <div class="card kpi">
+            <h3>On Leave Today</h3>
+            <p id="onLeaveToday">0</p>
+        </div>
+    </div>
+
+    <div class="dashboard-grid two-columns" id="shift-summary">
+        <div class="card" id="morningShiftCard">
+            <div class="section-heading">
+                <h3>Morning Shift</h3>
+                <span class="badge success">9 AM - 6 PM</span>
+            </div>
+            <div class="shift-metrics">
+                <div>
+                    <span>Total</span>
+                    <strong id="morningTotal">0</strong>
+                </div>
+                <div>
+                    <span>Present</span>
+                    <strong id="morningPresent">0</strong>
+                </div>
+                <div>
+                    <span>Absent</span>
+                    <strong id="morningAbsent">0</strong>
+                </div>
+                <div>
+                    <span>On Leave</span>
+                    <strong id="morningLeave">0</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="nightShiftCard">
+            <div class="section-heading">
+                <h3>Night Shift</h3>
+                <span class="badge warning">9 PM - 6 AM</span>
+            </div>
+            <div class="shift-metrics">
+                <div>
+                    <span>Total</span>
+                    <strong id="nightTotal">0</strong>
+                </div>
+                <div>
+                    <span>Present</span>
+                    <strong id="nightPresent">0</strong>
+                </div>
+                <div>
+                    <span>Absent</span>
+                    <strong id="nightAbsent">0</strong>
+                </div>
+                <div>
+                    <span>On Leave</span>
+                    <strong id="nightLeave">0</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

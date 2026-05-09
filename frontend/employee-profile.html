@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Employee Profile</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="dashboard.html">Employee Dashboard</a>
+    <a href="employee-profile.html" class="active">Profile</a>
+    <a href="punch.html">Punch In / Punch Out</a>
+    <a href="attendance.html">Employee Attendance History</a>
+    <a href="leave.html">Employee Apply Leave</a>
+    <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Profile</h1>
+            <p>Your employee account details.</p>
+        </div>
+        <span class="badge" id="todayStatus">Loading</span>
+    </div>
+
+    <div class="card profile-card">
+        <h3>Profile</h3>
+        <div class="profile-name" id="name">-</div>
+        <p id="email">-</p>
+        <p id="employeeId">Employee ID: -</p>
+        <p id="role">Role: -</p>
+        <p id="shift">Shift: -</p>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>

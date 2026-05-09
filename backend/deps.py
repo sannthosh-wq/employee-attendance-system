@@ -17,9 +17,13 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         raise HTTPException(status_code=401, detail="Invalid token")
 
     db = SessionLocal()
-    user = db.query(Employee).filter(Employee.id == user_id).first()
+    try:
+        user = db.query(Employee).filter(Employee.id == user_id).first()
 
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
 
-    return user
+        db.expunge(user)
+        return user
+    finally:
+        db.close()

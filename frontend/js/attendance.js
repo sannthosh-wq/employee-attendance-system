@@ -1,80 +1,73 @@
 const token = localStorage.getItem("token");
+const API_BASE = "http://127.0.0.1:8000";
 
 if (!token) {
     window.location.href = "login.html";
 }
 
-loadAttendance();
+document.addEventListener("DOMContentLoaded", loadAttendance);
 
-
-// ================= LOAD ATTENDANCE =================
-
-async function loadAttendance() {
-
-    const response = await fetch(
-        "http://127.0.0.1:8000/attendance/my-attendance",
-        {
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
+async function apiRequest(path) {
+    const response = await fetch(`${API_BASE}${path}`, {
+        headers: {
+            "Authorization": `Bearer ${token}`
         }
-    );
-
-    const data = await response.json();
-
-    const table = document.getElementById("attendanceTable");
-
-    table.innerHTML = "";
-
-    data.forEach(record => {
-
-        const loginTime = record.login_time
-            ? new Date(record.login_time).toLocaleString()
-            : "-";
-
-        const logoutTime = record.logout_time
-            ? new Date(record.logout_time).toLocaleString()
-            : "-";
-
-        let totalHours = "-";
-
-        if (record.total_hours) {
-
-            totalHours = formatDuration(record.total_hours);
-        }
-
-        table.innerHTML += `
-
-        <tr>
-
-            <td>${record.date}</td>
-
-            <td>${loginTime}</td>
-
-            <td>${logoutTime}</td>
-
-            <td>${totalHours}</td>
-
-            <td>${record.is_late ? "Yes" : "No"}</td>
-
-            <td>${record.left_early ? "Yes" : "No"}</td>
-
-        </tr>
-
-        `;
     });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(data.detail || "Something went wrong");
+    }
+
+    return data;
 }
 
+async function loadAttendance() {
+    try {
+        const data = await apiRequest("/attendance/my-attendance");
+        const table = document.getElementById("attendanceTable");
 
+        if (!table) return;
 
-// ================= FORMAT DURATION =================
+        table.innerHTML = "";
 
-function formatDuration(duration) {
+        data.forEach(record => {
+            const active = !record.logout_time;
 
-    /*
-        Example backend format:
-        "08:30:25"
-    */
+            table.innerHTML += `
+                <tr>
+                    <td>${record.date}</td>
+                    <td>${formatDateTime(record.login_time)}</td>
+                    <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
+                    <td>${formatDuration(record.total_hours)}</td>
+                    <td>${yesNo(record.is_late)}</td>
+                    <td>${active ? "-" : yesNo(record.left_early)}</td>
+                </tr>
+            `;
+        });
 
-    return duration;
+        if (!table.innerHTML) {
+            table.innerHTML = `<tr><td colspan="6" class="muted">No attendance records found</td></tr>`;
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function formatDateTime(value) {
+    return value ? new Date(value).toLocaleString() : "-";
+}
+
+function formatDuration(value) {
+    if (!value) return "-";
+    return value.split(".")[0];
+}
+
+function badge(text, type) {
+    return `<span class="badge ${type}">${text}</span>`;
+}
+
+function yesNo(value) {
+    return value ? badge("Yes", "warning") : badge("No", "success");
 }

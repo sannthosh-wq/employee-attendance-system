@@ -10,6 +10,14 @@ class LoginSchema(BaseModel):
     email: str
     password: str
 
+class ForgotPasswordSchema(BaseModel):
+    email: str
+
+class ResetPasswordSchema(BaseModel):
+    email: str
+    token: str
+    new_password: str
+
 class AttendanceResponse(BaseModel):
     date: date
     login_time: datetime

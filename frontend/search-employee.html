@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Employee</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html" class="active">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Search Employee</h1>
+            <p>Search employees by name, email, role, or shift.</p>
+        </div>
+    </div>
+
+    <div class="card table-card">
+        <input type="search" id="employeeSearch" placeholder="Search by name, email, role, or shift" oninput="renderEmployees()">
+        <div class="status-tabs">
+            <button type="button" class="secondary active" id="statusAllBtn" onclick="filterTodayStatus('all')">All</button>
+            <button type="button" class="secondary" id="statusPresentBtn" onclick="filterTodayStatus('present')">Present</button>
+            <button type="button" class="secondary" id="statusAbsentBtn" onclick="filterTodayStatus('absent')">Absent</button>
+            <button type="button" class="secondary" id="statusLeaveBtn" onclick="filterTodayStatus('leave')">On Leave</button>
+        </div>
+        <div class="status-tabs">
+            <button type="button" class="secondary active" id="shiftAllBtn" onclick="filterEmployeeShift('all')">All Shifts</button>
+            <button type="button" class="secondary" id="shiftMorningBtn" onclick="filterEmployeeShift('morning')">Morning</button>
+            <button type="button" class="secondary" id="shiftNightBtn" onclick="filterEmployeeShift('night')">Night</button>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Shift</th>
+                        <th>Joined</th>
+                        <th>Today</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="employeeTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

@@ -1,51 +1,133 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dashboard</title>
+    <title>Employee Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <div class="sidebar">
-
     <h2>EMS</h2>
-
-    <a href="dashboard.html">🏠 Dashboard</a>
-
-    <a href="attendance.html">🕒 Attendance</a>
-
-    <a href="leave.html">📄 Leave</a>
-
-    <a href="monthly-summary.html">📊 Monthly</a>
-
-    <a href="admin.html">⚙️ Admin</a>
-
-    <a href="#" onclick="logout()">🚪 Logout</a>
-
+    <a href="dashboard.html" class="active">Employee Dashboard</a>
+    <a href="employee-profile.html">Profile</a>
+    <a href="punch.html">Punch In / Punch Out</a>
+    <a href="attendance.html">Employee Attendance History</a>
+    <a href="leave.html">Employee Apply Leave</a>
+    <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="#" onclick="logout()">Logout</a>
 </div>
 
 <div class="main-content">
-
-
     <div class="dashboard">
-
-        <h2>Employee Dashboard</h2>
-
-        <div class="card">
-            <h3 id="name"></h3>
-            <p id="email"></p>
-            <p id="role"></p>
-            <p id="shift"></p>
+        <div class="page-header">
+            <div>
+                <h1>Employee Dashboard</h1>
+                <p>Track your profile, attendance, leave, and monthly summary.</p>
+            </div>
+            <span class="badge" id="todayStatus">Loading</span>
         </div>
 
-        <div class="card">
-            <button onclick="punchIn()">Punch In</button>
-            <br><br>
-            <button onclick="punchOut()">Punch Out</button>
+        <div class="dashboard-grid two-columns">
+            <div class="card profile-card" id="profile">
+                <h3>Profile</h3>
+                <div class="profile-name" id="name">-</div>
+                <p id="email">-</p>
+                <p id="employeeId">Employee ID: -</p>
+                <p id="role">Role: -</p>
+                <p id="shift">Shift: -</p>
+            </div>
+
+            <div class="card action-card" id="punch">
+                <h3>Attendance Action</h3>
+                <p class="muted">Use punch in when you start work and punch out when you finish.</p>
+                <div class="button-row">
+                    <button onclick="punchIn()">Punch In</button>
+                    <button class="secondary" onclick="punchOut()">Punch Out</button>
+                </div>
+            </div>
         </div>
 
+        <div class="cards">
+            <div class="card kpi">
+                <h3>Total Attendance Days</h3>
+                <p id="totalAttendanceDays">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Approved Leave Days</h3>
+                <p id="totalLeaveDays">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>This Month Present</h3>
+                <p id="presentDays">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Attendance Percentage</h3>
+                <p id="attendancePercentage">0%</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card" id="apply-leave">
+                <div class="section-heading">
+                    <h3>Apply Leave</h3>
+                    <a href="leave.html">View all leaves</a>
+                </div>
+                <label>Start Date</label>
+                <input type="date" id="startDate">
+                <label>End Date</label>
+                <input type="date" id="endDate">
+                <label>Reason</label>
+                <input type="text" id="reason" placeholder="Enter reason">
+                <button onclick="applyLeave()">Apply Leave</button>
+            </div>
+
+            <div class="card" id="monthly-summary">
+                <div class="section-heading">
+                    <h3>Monthly Attendance Summary</h3>
+                    <a href="monthly-summary.html">Open summary</a>
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label>Month</label>
+                        <input type="number" id="month" min="1" max="12">
+                    </div>
+                    <div>
+                        <label>Year</label>
+                        <input type="number" id="year">
+                    </div>
+                </div>
+                <button onclick="loadSummary()">Get Summary</button>
+                <div class="summary-list">
+                    <p><strong>Working Days:</strong> <span id="workingDays">0</span></p>
+                    <p><strong>Leave Days:</strong> <span id="leaveDays">0</span></p>
+                    <p><strong>Absent Days:</strong> <span id="absentDays">0</span></p>
+                    <p><strong>Total Hours:</strong> <span id="totalHours">0 hrs</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card" id="attendance-history">
+            <div class="section-heading">
+                <h3>Employee Attendance History</h3>
+                <a href="attendance.html">Open history</a>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Login Time</th>
+                            <th>Logout Time</th>
+                            <th>Total Hours</th>
+                            <th>Late</th>
+                            <th>Left Early</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTable"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
-
 </div>
 
 <script src="js/auth.js"></script>

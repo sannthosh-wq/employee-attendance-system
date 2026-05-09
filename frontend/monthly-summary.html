@@ -1,94 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Monthly Summary</title>
-
+    <title>Monthly Attendance Summary</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <div class="sidebar">
-
     <h2>EMS</h2>
-
-    <a href="dashboard.html">🏠 Dashboard</a>
-
-    <a href="attendance.html">🕒 Attendance</a>
-
-    <a href="leave.html">📄 Leave</a>
-
-    <a href="monthly-summary.html">📊 Monthly</a>
-
-    <a href="admin.html">⚙️ Admin</a>
-
-    <a href="#" onclick="logout()">🚪 Logout</a>
-
+    <a href="dashboard.html">Employee Dashboard</a>
+    <a href="employee-profile.html">Profile</a>
+    <a href="punch.html">Punch In / Punch Out</a>
+    <a href="attendance.html">Employee Attendance History</a>
+    <a href="leave.html">Employee Apply Leave</a>
+    <a href="monthly-summary.html" class="active">Monthly Attendance Summary</a>
+    <a href="#" onclick="logout()">Logout</a>
 </div>
 
 <div class="main-content">
-
-
     <div class="dashboard">
-
-        <h2>Monthly Attendance Summary</h2>
-
-        <!-- FILTER -->
-
-        <div class="card">
-
-            <label>Select Month</label>
-
-            <input type="number" id="month" min="1" max="12" placeholder="Enter month">
-
-            <label>Select Year</label>
-
-            <input type="number" id="year" placeholder="Enter year">
-
-            <button onclick="loadSummary()">
-                Get Summary
-            </button>
-
+        <div class="page-header">
+            <div>
+                <h1>Monthly Attendance Summary</h1>
+                <p>View your monthly attendance totals.</p>
+            </div>
         </div>
 
+        <div class="card">
+            <div class="form-grid">
+                <div>
+                    <label>Select Month</label>
+                    <input type="number" id="month" min="1" max="12" placeholder="Enter month">
+                </div>
+                <div>
+                    <label>Select Year</label>
+                    <input type="number" id="year" placeholder="Enter year">
+                </div>
+            </div>
 
-        <!-- SUMMARY -->
+            <button onclick="loadSummary()">Get Summary</button>
+        </div>
 
         <div class="card">
-
             <h3>Summary Details</h3>
-
-            <br>
-
-            <p><strong>Working Days:</strong> <span id="workingDays">0</span></p>
-
-            <br>
-
-            <p><strong>Approved Leave Days:</strong> <span id="leaveDays">0</span></p>
-
-            <br>
-
-            <p><strong>Effective Working Days:</strong> <span id="effectiveDays">0</span></p>
-
-            <br>
-
-            <p><strong>Present Days:</strong> <span id="presentDays">0</span></p>
-
-            <br>
-
-            <p><strong>Absent Days:</strong> <span id="absentDays">0</span></p>
-
-            <br>
-
-            <p><strong>Total Hours Worked:</strong> <span id="totalHours">0</span></p>
-
-            <br>
-
-            <p><strong>Attendance Percentage:</strong> <span id="attendancePercentage">0%</span></p>
-
+            <div class="summary-list">
+                <p><strong>Working Days:</strong> <span id="workingDays">0</span></p>
+                <p><strong>Approved Leave Days:</strong> <span id="leaveDays">0</span></p>
+                <p><strong>Effective Working Days:</strong> <span id="effectiveDays">0</span></p>
+                <p><strong>Present Days:</strong> <span id="presentDays">0</span></p>
+                <p><strong>Absent Days:</strong> <span id="absentDays">0</span></p>
+                <p><strong>Total Hours Worked:</strong> <span id="totalHours">0</span></p>
+                <p><strong>Attendance Percentage:</strong> <span id="attendancePercentage">0%</span></p>
+            </div>
         </div>
-
     </div>
-
 </div>
 
 <script src="js/auth.js"></script>

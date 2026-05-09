@@ -1,57 +1,83 @@
 const token = localStorage.getItem("token");
+const API_BASE = "http://127.0.0.1:8000";
 
 if (!token) {
     window.location.href = "login.html";
 }
 
+const currentDate = new Date();
 
-// ================= LOAD SUMMARY =================
+document.addEventListener("DOMContentLoaded", () => {
+    setValue("month", currentDate.getMonth() + 1);
+    setValue("year", currentDate.getFullYear());
+    loadSummary();
+});
+
+async function apiRequest(path) {
+    const response = await fetch(`${API_BASE}${path}`, {
+        headers: {
+            "Authorization": `Bearer ${token}`
+        }
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(data.detail || "Something went wrong");
+    }
+
+    return data;
+}
 
 async function loadSummary() {
-
-    const month = document.getElementById("month").value;
-
-    const year = document.getElementById("year").value;
+    const month = getValue("month");
+    const year = getValue("year");
 
     if (!month || !year) {
         alert("Please enter month and year");
         return;
     }
 
-    const response = await fetch(
-        `http://127.0.0.1:8000/employee/monthly-summary?month=${month}&year=${year}`,
-        {
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        }
-    );
+    try {
+        const data = await apiRequest(`/employee/monthly-summary?month=${month}&year=${year}`);
+        applySummaryData(data);
+    } catch (error) {
+        alert(error.message);
+    }
+}
 
-    const data = await response.json();
-
-    if (!response.ok) {
-        alert(data.detail);
+function applySummaryData(data) {
+    if (data.has_data === false) {
+        setText("workingDays", "No data");
+        setText("leaveDays", "No data");
+        setText("effectiveDays", "No data");
+        setText("presentDays", "No data");
+        setText("absentDays", "No data");
+        setText("totalHours", "No data");
+        setText("attendancePercentage", "No data");
         return;
     }
 
-    document.getElementById("workingDays").innerText =
-        data.working_days;
+    setText("workingDays", data.working_days);
+    setText("leaveDays", data.approved_leave_days);
+    setText("effectiveDays", data.effective_working_days);
+    setText("presentDays", data.present_days);
+    setText("absentDays", data.absent_days);
+    setText("totalHours", data.total_hours_worked + " hrs");
+    setText("attendancePercentage", data.attendance_percentage + "%");
+}
 
-    document.getElementById("leaveDays").innerText =
-        data.approved_leave_days;
+function getValue(id) {
+    const element = document.getElementById(id);
+    return element ? element.value.trim() : "";
+}
 
-    document.getElementById("effectiveDays").innerText =
-        data.effective_working_days;
+function setValue(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.value = value;
+}
 
-    document.getElementById("presentDays").innerText =
-        data.present_days;
-
-    document.getElementById("absentDays").innerText =
-        data.absent_days;
-
-    document.getElementById("totalHours").innerText =
-        data.total_hours_worked + " hrs";
-
-    document.getElementById("attendancePercentage").innerText =
-        data.attendance_percentage + "%";
+function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.innerText = value;
 }

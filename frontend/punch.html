@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Punch In / Punch Out</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="dashboard.html">Employee Dashboard</a>
+    <a href="employee-profile.html">Profile</a>
+    <a href="punch.html" class="active">Punch In / Punch Out</a>
+    <a href="attendance.html">Employee Attendance History</a>
+    <a href="leave.html">Employee Apply Leave</a>
+    <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="page-header">
+        <div>
+            <h1>Punch In / Punch Out</h1>
+            <p>Mark your daily attendance.</p>
+        </div>
+        <span class="badge" id="todayStatus">Loading</span>
+    </div>
+
+    <div class="card action-card" id="punch">
+        <h3>Attendance Action</h3>
+        <p class="muted">Use punch in when you start work and punch out when you finish.</p>
+        <div class="button-row">
+            <button onclick="punchIn()">Punch In</button>
+            <button class="secondary" onclick="punchOut()">Punch Out</button>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/dashboard.js"></script>
+
+</body>
+</html>
