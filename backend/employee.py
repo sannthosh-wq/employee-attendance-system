@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from attendance_logic import employee_monthly_summary, employee_today_status, working_leave_days
+from attendance_logic import employee_monthly_summary, employee_shift_date_status, is_working_day, working_leave_days
 from database import SessionLocal
 from deps import get_current_user
 from models import Attendance, Leave
@@ -36,12 +36,13 @@ def employee_dashboard(
     )
 
     joined_at = current_user.joined_at or date(2026, 5, 1)
-    total_attendance_days = db.query(Attendance).filter(
+    attendance_records = db.query(Attendance).filter(
         Attendance.employee_id == current_user.id,
         Attendance.date >= joined_at,
-    ).count()
+    ).all()
+    total_attendance_days = sum(1 for record in attendance_records if is_working_day(record.date))
 
-    today_status = employee_today_status(db, current_user, today)
+    today_status = employee_shift_date_status(db, current_user, today)
     if today_status == "Absent":
         today_status = "Not Marked"
 

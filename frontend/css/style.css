@@ -1641,6 +1641,25 @@ tbody tr:hover {
     background: linear-gradient(135deg, var(--primary), var(--accent));
 }
 
+.record-limit-control {
+    display: grid;
+    grid-template-columns: auto minmax(130px, 170px);
+    align-items: center;
+    gap: 10px;
+}
+
+.attendance-table-controls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.record-limit-control label {
+    margin: 0;
+}
+
 @media (max-width: 1100px) {
     .main-content {
         max-width: calc(100vw - 284px);
@@ -1675,5 +1694,16 @@ tbody tr:hover {
 
     .container {
         padding: 26px;
+    }
+
+    .record-limit-control {
+        width: 100%;
+        grid-template-columns: 1fr;
+    }
+
+    .attendance-table-controls {
+        width: 100%;
+        align-items: stretch;
+        flex-direction: column;
     }
 }

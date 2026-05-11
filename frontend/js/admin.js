@@ -20,10 +20,13 @@ let activeStatusFilter = "all";
 let activeEmployeeShiftFilter = "all";
 let activeSummaryShift = "morning";
 let activeAttendanceFilter = "day";
+const LOW_ATTENDANCE_THRESHOLD = 70;
 
 document.addEventListener("DOMContentLoaded", async () => {
     await loadCurrentAdminContext();
     applyRoleBasedUi();
+
+    const isAttendanceAnalyticsPage = Boolean(document.getElementById("analyticsMonth"));
 
     activeSummaryShift = getCurrentSummaryShift();
     setupAttendanceHistoryFilters();
@@ -33,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         loadAdminProfile();
     }
 
-    if ((document.getElementById("totalEmployees") && !document.getElementById("todayShiftFilter")) || document.getElementById("attendanceChart")) {
+    if (!isAttendanceAnalyticsPage && ((document.getElementById("totalEmployees") && !document.getElementById("todayShiftFilter")) || document.getElementById("attendanceChart"))) {
         loadDashboard();
     }
 
@@ -317,6 +320,7 @@ function setupAttendanceAnalytics() {
     if (!document.getElementById("analyticsMonth")) return;
 
     const now = new Date();
+    setValue("analyticsDate", formatInputDate(now));
     setValue("analyticsMonth", now.getMonth() + 1);
     setValue("analyticsYear", now.getFullYear());
     loadAttendanceAnalytics();
@@ -327,51 +331,90 @@ async function loadAttendanceAnalytics() {
 
     const month = getValue("analyticsMonth");
     const year = getValue("analyticsYear");
+    const selectedDate = getValue("analyticsDate") || formatInputDate(new Date());
 
-    if (!month || !year) return;
+    if (!month || !year || !selectedDate) return;
 
     try {
-        const [dashboard, shiftData, employeeData, attendanceRecords, monthlyReport, warnings] = await Promise.all([
-            apiRequest("/admin/dashboard"),
-            apiRequest("/admin/shift-summary"),
+        const [dailySummary, employeeData, attendanceRecords, monthlyReport, warnings] = await Promise.all([
+            loadDailyAnalyticsSummary(selectedDate),
             apiRequest("/admin/employees"),
             apiRequest("/admin/attendance"),
             apiRequest(`/admin/monthly-attendance-report?month=${month}&year=${year}`),
-            apiRequest(`/admin/low-attendance-warning?month=${month}&year=${year}&threshold=75`)
+            loadLowAttendanceWarnings(month, year)
         ]);
 
         employees = employeeData;
         allAttendanceRecords = attendanceRecords;
         populateAnalyticsEmployeeFilter();
-        renderAnalyticsDashboard(dashboard, shiftData, monthlyReport, warnings, attendanceRecords);
+        renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attendanceRecords);
     } catch (error) {
         alert(error.message);
     }
 }
 
-function renderAnalyticsDashboard(dashboard, shiftData, monthlyReport, warnings, attendanceRecords) {
-    setText("analyticsDateLabel", dashboard.date || "Today");
-    setText("analyticsTotalLabel", `${dashboard.total_employees} Employees`);
+async function loadDailyAnalyticsSummary(selectedDate) {
+    try {
+        return await apiRequest(`/admin/daily-attendance-summary?selected_date=${selectedDate}`);
+    } catch (error) {
+        const today = formatInputDate(new Date());
+        if (selectedDate !== today) {
+            throw error;
+        }
+
+        const [dashboard, shiftData] = await Promise.all([
+            apiRequest("/admin/dashboard"),
+            apiRequest("/admin/shift-summary")
+        ]);
+
+        return {
+            date: dashboard.date,
+            total_employees: dashboard.total_employees,
+            present_today: dashboard.present_today,
+            absent_today: dashboard.absent_today,
+            on_leave_today: dashboard.on_leave_today,
+            shifts: shiftData.shifts
+        };
+    }
+}
+
+async function loadLowAttendanceWarnings(month, year) {
+    try {
+        return await apiRequest(`/admin/low-attendance-warning?month=${month}&year=${year}&threshold=${LOW_ATTENDANCE_THRESHOLD}`);
+    } catch (error) {
+        return {
+            month,
+            year,
+            threshold: LOW_ATTENDANCE_THRESHOLD,
+            total_warnings: 0,
+            employees: []
+        };
+    }
+}
+
+function renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attendanceRecords) {
+    setText("analyticsDateLabel", dailySummary.date || "Selected Day");
+    setText("analyticsTotalLabel", `${dailySummary.total_employees} Employees`);
     setText("analyticsMonthLabel", `${pad2(monthlyReport.month)}-${monthlyReport.year}`);
 
     const model = buildAnalyticsModel(monthlyReport.report, attendanceRecords, monthlyReport.month, monthlyReport.year);
 
-    setText("totalEmployees", dashboard.total_employees);
-    setText("presentToday", dashboard.present_today);
-    setText("absentToday", dashboard.absent_today);
-    setText("onLeaveToday", dashboard.on_leave_today);
-    setText("monthlyAttendanceRecords", dashboard.monthly_attendance_records);
-    setText("monthlyWorkingHours", dashboard.monthly_total_working_hours + " hrs");
+    setText("totalEmployees", dailySummary.total_employees);
+    setText("presentToday", dailySummary.present_today);
+    setText("absentToday", dailySummary.absent_today);
+    setText("onLeaveToday", dailySummary.on_leave_today);
+    setText("monthlyAttendanceRecords", model.records.length);
+    setText("monthlyWorkingHours", formatHours(model.records.reduce((sum, record) => sum + durationToHours(record.total_hours), 0)));
 
-    const morning = shiftData.shifts.morning;
-    const night = shiftData.shifts.night;
+    const morning = dailySummary.shifts.morning;
+    const night = dailySummary.shifts.night;
 
     setText("analyticsMorningPresent", morning.present_today);
     setText("analyticsMorningTotal", `${morning.total} employees`);
     setText("analyticsNightPresent", night.present_today);
     setText("analyticsNightTotal", `${night.total} employees`);
 
-    renderChart(dashboard);
+    renderChart(dailySummary);
     renderAnalyticsScorecards(model);
     renderMonthlyAttendanceChart(model.report);
     renderBestAttendance(model.report);
@@ -382,6 +425,30 @@ function renderAnalyticsDashboard(dashboard, shiftData, monthlyReport, warnings,
     renderShiftSplitChart(model.report);
     renderEmployeeAnalytics(model);
     renderAnalyticsDetailTable(model.report, model.employeeStats);
+}
+
+function changeAnalyticsDate() {
+    const selectedDate = parseRecordDate(getValue("analyticsDate"));
+    if (selectedDate) {
+        setValue("analyticsMonth", selectedDate.getMonth() + 1);
+        setValue("analyticsYear", selectedDate.getFullYear());
+    }
+
+    loadAttendanceAnalytics();
+}
+
+function changeAnalyticsMonthYear() {
+    const month = Number(getValue("analyticsMonth"));
+    const year = Number(getValue("analyticsYear"));
+    const selectedDate = parseRecordDate(getValue("analyticsDate")) || new Date();
+
+    if (month >= 1 && month <= 12 && year) {
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const day = Math.min(selectedDate.getDate(), daysInMonth);
+        setValue("analyticsDate", `${year}-${pad2(month)}-${pad2(day)}`);
+    }
+
+    loadAttendanceAnalytics();
 }
 
 function buildAnalyticsModel(report, attendanceRecords, month, year) {
@@ -409,8 +476,7 @@ function buildAnalyticsModel(report, attendanceRecords, month, year) {
 
         return filteredEmployeeIds.has(record.employee_id)
             && recordDate.getMonth() + 1 === Number(month)
-            && recordDate.getFullYear() === Number(year)
-            && !isSunday(recordDate);
+            && recordDate.getFullYear() === Number(year);
     });
 
     const employeeStats = {};
@@ -474,12 +540,10 @@ function buildDailyAnalytics(records, month, year) {
 
     for (let day = 1; day <= daysInMonth; day += 1) {
         const current = new Date(Number(year), Number(month) - 1, day);
-        if (isSunday(current)) continue;
-
         const id = `${year}-${pad2(month)}-${pad2(day)}`;
         daily.push({
             id,
-            label: String(day),
+            label: isSunday(current) ? `${day} Sun` : String(day),
             present: 0,
             hours: 0,
             late: 0,
@@ -496,7 +560,10 @@ function buildDailyAnalytics(records, month, year) {
         const item = dailyMap[record.date];
         if (!item) return;
 
-        item.present += 1;
+        if (!isSunday(parseRecordDate(record.date))) {
+            item.present += 1;
+        }
+
         item.hours += durationToHours(record.total_hours);
         item.late += record.is_late ? 1 : 0;
         item.early += record.left_early && record.logout_time ? 1 : 0;
@@ -586,9 +653,11 @@ function renderAllAttendance() {
     if (!table) return;
 
     const records = getFilteredAttendanceRecords();
+    const limit = attendanceRecordLimit();
+    const visibleRecords = records.slice(0, limit);
     table.innerHTML = "";
 
-    records.forEach(record => {
+    visibleRecords.forEach(record => {
         const active = !record.logout_time;
 
         table.innerHTML += `
@@ -607,9 +676,22 @@ function renderAllAttendance() {
         `;
     });
 
-    setText("attendanceRecordCount", `${records.length} Records`);
+    setText("attendanceRecordCount", attendanceRecordCountText(visibleRecords.length, records.length));
     renderAttendanceSummary(records);
     emptyTable(table, 10);
+}
+
+function attendanceRecordLimit() {
+    const limit = Number(getValue("attendanceRecordLimit"));
+    return [10, 25, 50, 75, 100].includes(limit) ? limit : allAttendanceRecords.length;
+}
+
+function attendanceRecordCountText(visible, total) {
+    if (!document.getElementById("attendanceRecordLimit")) {
+        return `${total} Records`;
+    }
+
+    return `${visible} of ${total} Records`;
 }
 
 async function loadLeaves() {
@@ -828,7 +910,8 @@ async function loadAdminMonthlySummary() {
         const data = await apiRequest(`/employee/monthly-summary?month=${month}&year=${year}`);
 
         setText("adminMonthlySummaryLabel", `${pad2(month)}-${year}`);
-        setText("adminMonthPresentDays", data.has_data === false ? "No data" : data.present_days);
+        setText("adminMonthPresentDays", data.has_data === false ? "No data" : formatDayCount(data.present_days));
+        setText("adminMonthExtraWork", data.has_data === false ? "No data" : `Extra: ${data.extra_work_days || 0} days / ${data.extra_work_hours || 0} hrs`);
         setText("adminAttendancePercentage", data.has_data === false ? "No data" : `${data.attendance_percentage}%`);
     } catch (error) {
         alert(error.message);
@@ -880,11 +963,11 @@ function getFilteredAttendanceRecords() {
         const recordDate = parseRecordDate(record.date);
 
         if (!recordDate) return false;
-        if (isSunday(recordDate)) return false;
         if (!matchesAttendanceEmployee(record, employeeSearch)) return false;
 
         if (activeAttendanceFilter === "day") {
-            return record.date === getValue("attendanceDate");
+            const selectedDate = getValue("attendanceDate");
+            return selectedDate ? record.date === selectedDate : true;
         }
 
         if (activeAttendanceFilter === "week") {
@@ -1025,12 +1108,14 @@ function updateFilteredTodaySummary(shifts) {
 
     const selected = shifts[activeSummaryShift] || shifts.morning;
     const label = activeSummaryShift === "night" ? "Night Shift" : "Morning Shift";
+    const hasAttendanceState = selected.present_today + selected.absent_today + selected.on_leave_today > 0;
+    const displayLabel = selected.total > 0 && !hasAttendanceState ? `${label} Not Started` : label;
 
     setText("totalEmployees", selected.total);
     setText("presentToday", selected.present_today);
     setText("absentToday", selected.absent_today);
     setText("onLeaveToday", selected.on_leave_today);
-    setText("summaryShiftLabel", label);
+    setText("summaryShiftLabel", displayLabel);
 
     const labelElement = document.getElementById("summaryShiftLabel");
     if (labelElement) {
@@ -1087,13 +1172,24 @@ function renderChart(data) {
         attendanceChart.destroy();
     }
 
+    const present = Number(data.present_today || 0);
+    const leave = Number(data.on_leave_today || 0);
+    const absent = Number(data.absent_today || 0);
+    const total = Number(data.total_employees || data.total || 0);
+    const hasAttendanceState = present + leave + absent > 0;
+    const chartLabels = hasAttendanceState
+        ? ["Present", "On Leave", "Absent"]
+        : [total > 0 ? "Shift Not Started" : "No Employees"];
+    const chartData = hasAttendanceState ? [present, leave, absent] : [1];
+    const chartColors = hasAttendanceState ? ["#15803d", "#d97706", "#be123c"] : ["#94a3b8"];
+
     attendanceChart = new Chart(ctx, {
         type: "doughnut",
         data: {
-            labels: ["Present", "On Leave", "Absent"],
+            labels: chartLabels,
             datasets: [{
-                data: [data.present_today, data.on_leave_today, data.absent_today],
-                backgroundColor: ["#15803d", "#d97706", "#be123c"]
+                data: chartData,
+                backgroundColor: chartColors
             }]
         },
         options: {
@@ -1112,6 +1208,7 @@ function renderTodayChart(summary) {
     if (!document.getElementById("attendanceChart") || !document.getElementById("todayShiftFilter")) return;
 
     renderChart({
+        total: summary.total,
         present_today: summary.present_today,
         on_leave_today: summary.on_leave_today,
         absent_today: summary.absent_today
@@ -1329,13 +1426,14 @@ function renderEmployeeAnalytics(model) {
     const early = selectedRecords.filter(record => record.left_early && record.logout_time).length;
     const present = selectedReport.reduce((sum, item) => sum + item.present_days, 0);
     const leave = selectedReport.reduce((sum, item) => sum + item.approved_leave_days, 0);
+    const extra = selectedReport.reduce((sum, item) => sum + (item.extra_work_days || 0), 0);
     const attendance = selectedReport.length
         ? selectedReport.reduce((sum, item) => sum + item.attendance_percentage, 0) / selectedReport.length
         : 0;
 
     setText("employeeAnalyticsName", employee ? `${employee.name} - ${formatLabel(employee.role)}` : "All Employees");
     setText("employeeAttendancePercent", `${attendance.toFixed(1)}%`);
-    setText("employeePresentLeave", `${present} / ${leave}`);
+    setText("employeePresentLeave", `${present} / ${leave} / ${extra}`);
     setText("employeeTotalHours", formatHours(totalHours));
     setText("employeeLateEarly", `${late} / ${early}`);
 
@@ -1414,7 +1512,7 @@ function renderBestAttendance(report) {
             if (b.attendance_percentage !== a.attendance_percentage) {
                 return b.attendance_percentage - a.attendance_percentage;
             }
-            return b.present_days - a.present_days;
+            return Number(b.present_days || 0) - Number(a.present_days || 0);
         })
         .slice(0, 5);
 
@@ -1427,15 +1525,16 @@ function renderBestAttendance(report) {
                 <td>${item.name}</td>
                 <td>${formatLabel(employee?.shift)}</td>
                 <td>${formatDate(employee?.joined_at || item.joined_at)}</td>
-                <td>${item.present_days}</td>
+                <td>${formatDayCount(item.present_days)}</td>
                 <td>${item.approved_leave_days}</td>
+                <td>${formatExtraWork(item)}</td>
                 <td>${badge(`${item.attendance_percentage}%`, attendanceScoreClass(item.attendance_percentage))}</td>
             </tr>
         `;
     });
 
     setText("bestAttendanceCount", `${rows.length} Employees`);
-    emptyTable(table, 6);
+    emptyTable(table, 7);
 }
 
 function renderLowAttendanceWarnings(data) {
@@ -1448,7 +1547,8 @@ function renderLowAttendanceWarnings(data) {
         table.innerHTML += `
             <tr>
                 <td>${item.name}</td>
-                <td>${item.present_days}</td>
+                <td>${formatDayCount(item.present_days)}</td>
+                <td>${formatExtraWork(item)}</td>
                 <td>${item.effective_working_days}</td>
                 <td>${badge(`${item.attendance_percentage}%`, attendanceScoreClass(item.attendance_percentage))}</td>
                 <td>${badge(item.status, "warning")}</td>
@@ -1457,7 +1557,7 @@ function renderLowAttendanceWarnings(data) {
     });
 
     setText("lowAttendanceCount", `${data.total_warnings} Warnings`);
-    emptyTable(table, 5);
+    emptyTable(table, 6);
 }
 
 function renderAnalyticsDetailTable(report, employeeStats) {
@@ -1478,8 +1578,9 @@ function renderAnalyticsDetailTable(report, employeeStats) {
                 <td>${formatLabel(employee?.role)}</td>
                 <td>${formatLabel(employee?.shift)}</td>
                 <td>${formatDate(employee?.joined_at || item.joined_at)}</td>
-                <td>${item.present_days}</td>
+                <td>${formatDayCount(item.present_days)}</td>
                 <td>${item.approved_leave_days}</td>
+                <td>${formatExtraWork(item)}</td>
                 <td>${item.effective_working_days}</td>
                 <td>${badge(`${item.attendance_percentage}%`, attendanceScoreClass(item.attendance_percentage))}</td>
                 <td>${formatHours(stats.hours)}</td>
@@ -1490,7 +1591,7 @@ function renderAnalyticsDetailTable(report, employeeStats) {
     });
 
     setText("analyticsDetailCount", `${rows.length} Rows`);
-    emptyTable(table, 11);
+    emptyTable(table, 12);
 }
 
 function analyticsAxisOptions() {
@@ -1538,13 +1639,13 @@ function formatStatus(status) {
 function statusClass(status) {
     if (status === "Present" || status === "Working (Punched In)") return "success";
     if (status === "On Leave") return "warning";
-    if (status === "Pending Assignment" || status === "No Attendance" || status === "Shift Not Started") return "neutral";
+    if (status === "Pending Assignment" || status === "No Attendance" || status === "Shift Not Started" || status === "Extra Work") return "neutral";
     return "danger";
 }
 
 function attendanceScoreClass(score) {
     if (score >= 90) return "success";
-    if (score >= 75) return "warning";
+    if (score >= LOW_ATTENDANCE_THRESHOLD) return "warning";
     return "danger";
 }
 
@@ -1623,6 +1724,15 @@ function formatHours(value) {
     const minutes = totalMinutes % 60;
 
     return `${hours}h ${pad2(minutes)}m`;
+}
+
+function formatExtraWork(item) {
+    return `${item.extra_work_days || 0}d / ${item.extra_work_hours || 0}h`;
+}
+
+function formatDayCount(value) {
+    const number = Number(value || 0);
+    return Number.isInteger(number) ? String(number) : number.toFixed(1);
 }
 
 function formatDuration(value) {

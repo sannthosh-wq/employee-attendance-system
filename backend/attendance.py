@@ -7,6 +7,7 @@ from deps import get_current_user
 from schemas import AttendanceResponse
 from attendance_logic import (
     approved_leave_on,
+    attendance_day_credit,
     attendance_total_hours,
     calculate_worked_time,
     get_shift_attendance,
@@ -74,11 +75,20 @@ def punch_in(
             punch_type="in",
             punch_time=now
         ))
+        attendance_credit = attendance_day_credit(record, current_user.shift)
+        half_day_deducted = attendance_credit == 0.5
+        message = "Punch in successful"
+
+        if half_day_deducted:
+            message = "Punch in successful. Half day attendance is deducted because you punched in more than 3 hours after shift start"
+
         db.commit()
 
         return {
-            "message": "Punch in successful",
+            "message": message,
             "is_late": is_late,
+            "attendance_credit": attendance_credit,
+            "half_day_deducted": half_day_deducted,
             "type": "attendance_start"
         }
 

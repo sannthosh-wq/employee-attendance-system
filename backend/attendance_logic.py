@@ -9,6 +9,13 @@ from models import Attendance, AttendancePunch, Employee, Leave
 
 
 VALID_SHIFTS = {"morning", "night"}
+MORNING_SHIFT_START = time(9, 0)
+MORNING_SHIFT_END = time(18, 0)
+NIGHT_SHIFT_START = time(21, 0)
+NIGHT_SHIFT_DURATION = timedelta(hours=9)
+NIGHT_SHIFT_POST_END_CUTOFF = time(12, 0)
+SHIFT_GRACE_PERIOD = timedelta(minutes=15)
+HALF_DAY_AFTER = timedelta(hours=3)
 VALID_ROLES = {
     "employee",
     "admin",
@@ -25,18 +32,36 @@ REPORT_START_YEAR = 2026
 REPORT_START_MONTH = 5
 
 
+def night_shift_start_date(now: datetime):
+    if now.time() <= NIGHT_SHIFT_POST_END_CUTOFF:
+        return now.date() - timedelta(days=1)
+    return now.date()
+
+
+def get_shift_window_for_date(shift_date: date, shift: str):
+    if shift == "morning":
+        shift_start = datetime.combine(shift_date, MORNING_SHIFT_START)
+        shift_end = datetime.combine(shift_date, MORNING_SHIFT_END)
+        return shift_start, shift_start + SHIFT_GRACE_PERIOD, shift_end
+
+    if shift == "night":
+        shift_start = datetime.combine(shift_date, NIGHT_SHIFT_START)
+        shift_end = shift_start + NIGHT_SHIFT_DURATION
+        return shift_start, shift_start + SHIFT_GRACE_PERIOD, shift_end
+
+    raise HTTPException(status_code=400, detail="Invalid shift")
+
+
 def get_shift_window(now: datetime, shift: str):
     if shift == "morning":
         shift_date = now.date()
-        shift_start = datetime.combine(shift_date, time(9, 0))
-        shift_end = datetime.combine(shift_date, time(18, 0))
-        return shift_date, shift_start, shift_start + timedelta(minutes=15), shift_end
+        shift_start, grace_time, shift_end = get_shift_window_for_date(shift_date, shift)
+        return shift_date, shift_start, grace_time, shift_end
 
     if shift == "night":
-        shift_date = now.date() - timedelta(days=1) if now.time() <= time(12, 0) else now.date()
-        shift_start = datetime.combine(shift_date, time(21, 0))
-        shift_end = shift_start + timedelta(hours=9)
-        return shift_date, shift_start, shift_start + timedelta(minutes=15), shift_end
+        shift_date = night_shift_start_date(now)
+        shift_start, grace_time, shift_end = get_shift_window_for_date(shift_date, shift)
+        return shift_date, shift_start, grace_time, shift_end
 
     raise HTTPException(status_code=400, detail="Invalid shift")
 
@@ -66,6 +91,21 @@ def working_days_between(start_date: date, end_date: date):
         current += timedelta(days=1)
 
     return days
+
+
+def is_working_day(target_date: date):
+    return target_date.weekday() != 6
+
+
+def attendance_day_credit(record: Attendance, shift: str):
+    if not record.login_time:
+        return 0
+
+    shift_start, _, _ = get_shift_window_for_date(record.date, shift)
+    if record.login_time > shift_start + HALF_DAY_AFTER:
+        return 0.5
+
+    return 1
 
 
 def current_shift_date(shift: str, now: datetime | None = None):
@@ -174,6 +214,50 @@ def employee_today_status(db: Session, employee, today: date | None = None):
 
     if attendance.login_time:
         return "Present"
+
+    return "Absent"
+
+
+def employee_shift_date_status(
+    db: Session,
+    employee,
+    target_date: date,
+    now: datetime | None = None,
+):
+    if not is_assignment_complete(employee):
+        return "Pending Assignment"
+
+    now = now or datetime.now()
+
+    if emp_joined := employee.joined_at:
+        if target_date < emp_joined:
+            return "Pending Assignment"
+
+    if target_date > now.date():
+        return "Shift Not Started"
+
+    shift_start, _, _ = get_shift_window_for_date(target_date, employee.shift)
+
+    if approved_leave_on(db, employee.id, target_date):
+        return "On Leave"
+
+    attendance = get_shift_attendance(db, employee.id, target_date)
+
+    if attendance:
+        if not is_working_day(target_date):
+            return "Extra Work"
+
+        last_punch = latest_punch(db, attendance.id)
+        if last_punch and last_punch.punch_type == "in":
+            return "Working (Punched In)"
+        if attendance.login_time:
+            return "Present"
+
+    if target_date == now.date() and now < shift_start:
+        return "Shift Not Started"
+
+    if target_date.weekday() == 6:
+        return "Shift Not Started"
 
     return "Absent"
 
@@ -314,6 +398,8 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
             "effective_working_days": 0,
             "present_days": 0,
             "absent_days": 0,
+            "extra_work_days": 0,
+            "extra_work_hours": 0,
             "total_hours_worked": 0,
             "attendance_percentage": 0,
         }
@@ -327,6 +413,8 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
             "effective_working_days": 0,
             "present_days": 0,
             "absent_days": 0,
+            "extra_work_days": 0,
+            "extra_work_hours": 0,
             "total_hours_worked": 0,
             "attendance_percentage": 0,
         }
@@ -345,13 +433,21 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
             "effective_working_days": 0,
             "present_days": 0,
             "absent_days": 0,
+            "extra_work_days": 0,
+            "extra_work_hours": 0,
             "total_hours_worked": 0,
             "attendance_percentage": 0,
         }
 
     working_days = working_days_between(attendance_start, month_end)
     attendance_records = attendance_records_in_month(db, employee_id, month, year)
-    present_days = len(attendance_records)
+    working_day_records = [record for record in attendance_records if is_working_day(record.date)]
+    extra_work_records = [record for record in attendance_records if not is_working_day(record.date)]
+    present_days = sum(
+        attendance_day_credit(record, employee.shift)
+        for record in working_day_records
+    )
+    extra_work_days = len(extra_work_records)
     leave_days = approved_leave_days_in_month(db, employee_id, month, year)
     effective_working_days = max(working_days - leave_days, 0)
 
@@ -359,8 +455,8 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
     elapsed_working_days = working_days_between(attendance_start, elapsed_end)
     elapsed_leave_days = elapsed_approved_leave_days_in_month(db, employee_id, month, year)
     elapsed_present_days = sum(
-        1
-        for record in attendance_records
+        attendance_day_credit(record, employee.shift)
+        for record in working_day_records
         if record.date <= date.today()
     )
     absent_days = max(elapsed_working_days - elapsed_leave_days - elapsed_present_days, 0)
@@ -368,6 +464,10 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
     total_hours = sum(
         attendance_total_hours(db, record).total_seconds() / 3600
         for record in attendance_records
+    )
+    extra_work_hours = sum(
+        attendance_total_hours(db, record).total_seconds() / 3600
+        for record in extra_work_records
     )
 
     attendance_percentage = 0
@@ -382,6 +482,8 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
         "effective_working_days": effective_working_days,
         "present_days": present_days,
         "absent_days": absent_days,
+        "extra_work_days": extra_work_days,
+        "extra_work_hours": round(extra_work_hours, 2),
         "total_hours_worked": round(total_hours, 2),
         "attendance_percentage": attendance_percentage,
     }

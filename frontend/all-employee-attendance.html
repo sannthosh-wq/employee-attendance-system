@@ -32,6 +32,28 @@
     </div>
 
     <div class="card table-card">
+        <div class="section-heading">
+            <div>
+                <h3>Attendance Records</h3>
+                <span class="muted" id="attendanceRecordCount">0 Records</span>
+            </div>
+            <div class="attendance-table-controls">
+                <div class="record-limit-control">
+                    <label>Date</label>
+                    <input type="date" id="attendanceDate" onchange="renderAllAttendance()">
+                </div>
+                <div class="record-limit-control">
+                    <label>Show</label>
+                    <select id="attendanceRecordLimit" onchange="renderAllAttendance()">
+                        <option value="10">10 records</option>
+                        <option value="25">25 records</option>
+                        <option value="50">50 records</option>
+                        <option value="75">75 records</option>
+                        <option value="100">100 records</option>
+                    </select>
+                </div>
+            </div>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead>

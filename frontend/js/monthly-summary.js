@@ -53,6 +53,7 @@ function applySummaryData(data) {
         setText("effectiveDays", "No data");
         setText("presentDays", "No data");
         setText("absentDays", "No data");
+        setText("extraWork", "No data");
         setText("totalHours", "No data");
         setText("attendancePercentage", "No data");
         return;
@@ -61,8 +62,9 @@ function applySummaryData(data) {
     setText("workingDays", data.working_days);
     setText("leaveDays", data.approved_leave_days);
     setText("effectiveDays", data.effective_working_days);
-    setText("presentDays", data.present_days);
-    setText("absentDays", data.absent_days);
+    setText("presentDays", formatDayCount(data.present_days));
+    setText("absentDays", formatDayCount(data.absent_days));
+    setText("extraWork", `${data.extra_work_days || 0} days / ${data.extra_work_hours || 0} hrs`);
     setText("totalHours", data.total_hours_worked + " hrs");
     setText("attendancePercentage", data.attendance_percentage + "%");
 }
@@ -80,4 +82,9 @@ function setValue(id, value) {
 function setText(id, value) {
     const element = document.getElementById(id);
     if (element) element.innerText = value;
+}
+
+function formatDayCount(value) {
+    const number = Number(value || 0);
+    return Number.isInteger(number) ? String(number) : number.toFixed(1);
 }

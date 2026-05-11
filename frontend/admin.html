@@ -13,13 +13,9 @@
     <a href="admin-punch.html">Admin Punch In / Punch Out</a>
     <a href="admin-leave.html">Admin Apply Leave</a>
     <a href="admin-attendance-history.html">Attendance History</a>
-    <a href="all-employee-attendance.html">All Employee Attendance</a>
-    <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html">Attendance Analytics</a>
-    <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
-    <a href="search-employee.html">Search Employee</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
@@ -28,7 +24,7 @@
         <div class="page-header">
             <div>
                 <h1>Admin Dashboard</h1>
-                <p>Monitor attendance, approve leave, and manage employees.</p>
+                <p>Monitor today attendance, shift coverage, and key workforce status.</p>
             </div>
             <span class="badge success" id="adminTodayStatus">Admin</span>
         </div>
@@ -143,26 +139,10 @@
             </div>
         </div>
 
-        <div class="dashboard-grid two-columns">
+        <div class="dashboard-grid">
             <div class="card chart-box" id="analytics">
                 <h3>Attendance Analytics</h3>
                 <canvas id="attendanceChart"></canvas>
-            </div>
-
-            <div class="card" id="search-employee">
-                <h3>Search Employee</h3>
-                <input type="search" id="employeeSearch" placeholder="Search by name, email, role, or shift" oninput="renderEmployees()">
-                <div class="status-tabs">
-                    <button type="button" class="secondary active" id="statusAllBtn" onclick="filterTodayStatus('all')">All</button>
-                    <button type="button" class="secondary" id="statusPresentBtn" onclick="filterTodayStatus('present')">Present</button>
-                    <button type="button" class="secondary" id="statusAbsentBtn" onclick="filterTodayStatus('absent')">Absent</button>
-                    <button type="button" class="secondary" id="statusLeaveBtn" onclick="filterTodayStatus('leave')">On Leave</button>
-                </div>
-                <div class="status-tabs">
-                    <button type="button" class="secondary active" id="shiftAllBtn" onclick="filterEmployeeShift('all')">All Shifts</button>
-                    <button type="button" class="secondary" id="shiftMorningBtn" onclick="filterEmployeeShift('morning')">Morning</button>
-                    <button type="button" class="secondary" id="shiftNightBtn" onclick="filterEmployeeShift('night')">Night</button>
-                </div>
             </div>
         </div>
 
@@ -181,102 +161,6 @@
             </div>
         </div>
 
-        <div class="card table-card" id="all-attendance">
-            <div class="section-heading">
-                <h3>All Employee Attendance</h3>
-                <span class="muted">Employee and admin attendance history</span>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Employee</th>
-                            <th>Role</th>
-                            <th>Shift</th>
-                            <th>Joined</th>
-                            <th>Date</th>
-                            <th>Login Time</th>
-                            <th>Logout Time</th>
-                            <th>Total Hours</th>
-                            <th>Late</th>
-                            <th>Left Early</th>
-                        </tr>
-                    </thead>
-                    <tbody id="allAttendanceTable"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card table-card" id="leave-approval">
-            <h3>Leave Approval</h3>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Employee ID</th>
-                            <th>Name</th>
-                            <th>Role</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Reason</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="leaveTable"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card table-card" id="employee-management">
-            <div class="section-heading">
-                <h3>Employee Management</h3>
-                <span class="muted">Update roles, shifts, or delete employees.</span>
-            </div>
-
-            <div class="management-form">
-                <input type="number" id="employeeId" placeholder="Employee ID">
-                <select id="role">
-                    <option value="">Select Role</option>
-                    <option value="employee">Employee</option>
-                    <option value="admin">Admin</option>
-                    <option value="super_admin">Super Admin</option>
-                    <option value="developer">Developer</option>
-                    <option value="frontend_developer">Frontend Developer</option>
-                    <option value="backend_developer">Backend Developer</option>
-                    <option value="data_analyst">Data Analyst</option>
-                    <option value="data_scientist">Data Scientist</option>
-                    <option value="ml_developer">ML Developer</option>
-                    <option value="software_engineer">Software Engineer</option>
-                </select>
-                <select id="shift">
-                    <option value="">Select Shift</option>
-                    <option value="morning">Morning</option>
-                    <option value="night">Night</option>
-                </select>
-                <button onclick="updateRole()">Update Role</button>
-                <button class="secondary" onclick="updateShift()">Update Shift</button>
-            </div>
-
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Shift</th>
-                            <th>Joined</th>
-                            <th>Today</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="employeeTable"></tbody>
-                </table>
-            </div>
-        </div>
     </div>
 </div>
 

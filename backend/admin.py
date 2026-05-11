@@ -9,7 +9,7 @@ from attendance_logic import (
     VALID_SHIFTS,
     attendance_total_hours,
     employee_monthly_summary,
-    employee_today_status,
+    employee_shift_date_status,
     working_leave_days,
 )
 from database import SessionLocal
@@ -68,8 +68,8 @@ def empty_shift_summary():
     }
 
 
-def build_shift_summary(db: Session):
-    today = date.today()
+def build_shift_summary(db: Session, target_date: date | None = None):
+    target_date = target_date or date.today()
     summary = {
         "morning": empty_shift_summary(),
         "night": empty_shift_summary(),
@@ -77,7 +77,7 @@ def build_shift_summary(db: Session):
 
     for emp in db.query(Employee).filter(Employee.role != "super_admin", Employee.role.isnot(None), Employee.shift.isnot(None)).all():
         shift_key = emp.shift if emp.shift in summary else "morning"
-        status = employee_today_status(db, emp, today)
+        status = employee_shift_date_status(db, emp, target_date)
 
         summary[shift_key]["total"] += 1
 
@@ -214,7 +214,7 @@ def today_status(
                 "role": emp.role,
                 "shift": emp.shift,
                 "joined_at": emp.joined_at,
-                "status": "No Attendance" if emp.role == "super_admin" else employee_today_status(db, emp, today),
+                "status": "No Attendance" if emp.role == "super_admin" else employee_shift_date_status(db, emp, today),
             }
             for emp in employees
         ],
@@ -230,6 +230,29 @@ def shift_summary(
     return {
         "date": str(date.today()),
         "shifts": build_shift_summary(db),
+    }
+
+
+@router.get("/daily-attendance-summary")
+def daily_attendance_summary(
+    selected_date: date,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    shift_totals = build_shift_summary(db, selected_date)
+    present = sum(item["present_today"] for item in shift_totals.values())
+    leave = sum(item["on_leave_today"] for item in shift_totals.values())
+    absent = sum(item["absent_today"] for item in shift_totals.values())
+
+    return {
+        "date": str(selected_date),
+        "total_employees": sum(item["total"] for item in shift_totals.values()),
+        "present_today": present,
+        "on_leave_today": leave,
+        "absent_today": absent,
+        "shifts": shift_totals,
     }
 
 
@@ -402,6 +425,8 @@ def monthly_attendance_report(
             "present_days": summary["present_days"],
             "approved_leave_days": summary["approved_leave_days"],
             "effective_working_days": summary["effective_working_days"],
+            "extra_work_days": summary["extra_work_days"],
+            "extra_work_hours": summary["extra_work_hours"],
             "attendance_percentage": summary["attendance_percentage"],
         })
 
@@ -417,7 +442,7 @@ def monthly_attendance_report(
 def low_attendance_warning(
     month: int,
     year: int,
-    threshold: float = 75.0,
+    threshold: float = 70.0,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -441,6 +466,8 @@ def low_attendance_warning(
                 "name": emp.name,
                 "attendance_percentage": summary["attendance_percentage"],
                 "present_days": summary["present_days"],
+                "extra_work_days": summary["extra_work_days"],
+                "extra_work_hours": summary["extra_work_hours"],
                 "effective_working_days": summary["effective_working_days"],
                 "status": "Low Attendance Warning",
             })
