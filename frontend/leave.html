@@ -28,6 +28,12 @@
 
         <div class="card" id="apply-leave">
             <h3>Apply Leave</h3>
+            <div class="shift-metrics">
+                <div><span>Monthly Allowance</span><strong id="leaveAllowance">0</strong></div>
+                <div><span>Used</span><strong id="leaveUsed">0</strong></div>
+                <div><span>Pending</span><strong id="leavePending">0</strong></div>
+                <div><span>Monthly Balance</span><strong id="leaveBalance">0</strong></div>
+            </div>
             <label>Start Date</label>
             <input type="date" id="startDate">
 
@@ -38,6 +44,14 @@
             <input type="text" id="reason" placeholder="Enter reason">
 
             <button onclick="applyLeave()">Apply Leave</button>
+        </div>
+
+        <div class="card status-list">
+            <div class="section-heading">
+                <h3>Notifications</h3>
+                <span class="badge warning" id="notificationCount">0 Unread</span>
+            </div>
+            <ul id="notificationList"></ul>
         </div>
 
         <div class="card table-card">

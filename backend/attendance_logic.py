@@ -1,5 +1,6 @@
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta
+from math import ceil
 
 from fastapi import HTTPException
 from sqlalchemy import extract
@@ -28,8 +29,12 @@ VALID_ROLES = {
     "ml_developer",
     "software_engineer",
 }
+VALID_EMPLOYMENT_TYPES = {"full_time", "intern", "contract"}
+MIN_ATTENDANCE_PERCENTAGE = 70
 REPORT_START_YEAR = 2026
 REPORT_START_MONTH = 5
+NEXT_DAY_WORK_START_FROM = date(2026, 5, 12)
+JOINED_TODAY_STATUS = "Joined Today - Work Starts Tomorrow"
 
 
 def night_shift_start_date(now: datetime):
@@ -79,6 +84,20 @@ def employee_join_date(employee):
     return employee.joined_at or date(REPORT_START_YEAR, REPORT_START_MONTH, 1)
 
 
+def uses_next_day_work_start(employee):
+    return (
+        getattr(employee, "role", None) not in ["admin", "super_admin"]
+        and employee_join_date(employee) >= NEXT_DAY_WORK_START_FROM
+    )
+
+
+def employee_work_start_date(employee):
+    join_date = employee_join_date(employee)
+    if uses_next_day_work_start(employee):
+        return join_date + timedelta(days=1)
+    return join_date
+
+
 def working_days_between(start_date: date, end_date: date):
     if end_date < start_date:
         return 0
@@ -106,6 +125,134 @@ def attendance_day_credit(record: Attendance, shift: str):
         return 0.5
 
     return 1
+
+
+def late_minutes(record: Attendance, shift: str):
+    if not record.login_time or not shift:
+        return 0
+
+    _, grace_time, _ = get_shift_window_for_date(record.date, shift)
+    if record.login_time <= grace_time:
+        return 0
+
+    return max(round((record.login_time - grace_time).total_seconds() / 60), 0)
+
+
+def month_bounds(month: int, year: int):
+    month_start = date(year, month, 1)
+    month_end = date(year, month, monthrange(year, month)[1])
+    return month_start, month_end
+
+
+def leave_allowance(employee, month: int | None = None, year: int | None = None):
+    today = date.today()
+    month = month or today.month
+    year = year or today.year
+    month_start, month_end = month_bounds(month, year)
+    attendance_start = max(month_start, employee_work_start_date(employee))
+
+    if month_end < attendance_start:
+        return 0
+
+    working_days = working_days_between(attendance_start, month_end)
+    minimum_attendance_days = ceil(working_days * (MIN_ATTENDANCE_PERCENTAGE / 100))
+    return max(working_days - minimum_attendance_days, 0)
+
+
+def leave_days_in_month_by_status(
+    db: Session,
+    employee_id: int,
+    month: int,
+    year: int,
+    statuses: tuple[str, ...],
+    exclude_leave_id: int | None = None,
+):
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        return 0
+
+    month_start, month_end = month_bounds(month, year)
+    join_date = employee_work_start_date(employee)
+    query = db.query(Leave).filter(
+        Leave.employee_id == employee_id,
+        Leave.status.in_(statuses),
+        Leave.start_date <= month_end,
+        Leave.end_date >= month_start,
+    )
+
+    if exclude_leave_id is not None:
+        query = query.filter(Leave.id != exclude_leave_id)
+
+    leave_days = 0
+    for leave in query.all():
+        current = max(leave.start_date, month_start, join_date)
+        leave_end = min(leave.end_date, month_end)
+
+        while current <= leave_end:
+            if current.weekday() != 6:
+                leave_days += 1
+            current += timedelta(days=1)
+
+    return leave_days
+
+
+def employee_leave_balance(
+    db: Session,
+    employee_id: int,
+    month: int | None = None,
+    year: int | None = None,
+    exclude_leave_id: int | None = None,
+):
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not employee:
+        return {
+            "month": month or date.today().month,
+            "year": year or date.today().year,
+            "minimum_attendance_percentage": MIN_ATTENDANCE_PERCENTAGE,
+            "working_days": 0,
+            "minimum_attendance_days": 0,
+            "allowance": 0,
+            "approved_days": 0,
+            "pending_days": 0,
+            "remaining_days": 0,
+        }
+
+    today = date.today()
+    month = month or today.month
+    year = year or today.year
+    month_start, month_end = month_bounds(month, year)
+    attendance_start = max(month_start, employee_work_start_date(employee))
+    working_days = working_days_between(attendance_start, month_end) if month_end >= attendance_start else 0
+    minimum_attendance_days = ceil(working_days * (MIN_ATTENDANCE_PERCENTAGE / 100))
+    allowance = max(working_days - minimum_attendance_days, 0)
+    approved_days = leave_days_in_month_by_status(
+        db,
+        employee_id,
+        month,
+        year,
+        ("approved",),
+        exclude_leave_id,
+    )
+    pending_days = leave_days_in_month_by_status(
+        db,
+        employee_id,
+        month,
+        year,
+        ("pending",),
+        exclude_leave_id,
+    )
+
+    return {
+        "month": month,
+        "year": year,
+        "minimum_attendance_percentage": MIN_ATTENDANCE_PERCENTAGE,
+        "working_days": working_days,
+        "minimum_attendance_days": minimum_attendance_days,
+        "allowance": allowance,
+        "approved_days": approved_days,
+        "pending_days": pending_days,
+        "remaining_days": max(allowance - approved_days - pending_days, 0),
+    }
 
 
 def current_shift_date(shift: str, now: datetime | None = None):
@@ -157,6 +304,31 @@ def get_shift_attendance(db: Session, employee_id: int, shift_date: date):
     )
 
 
+def active_attendance_for_punch_out(
+    db: Session,
+    employee_id: int,
+    shift: str,
+    now: datetime,
+):
+    shift_date, shift_start, grace_time, shift_end = get_shift_window(now, shift)
+    candidate_dates = [shift_date]
+
+    if shift == "night" and now < shift_start:
+        candidate_dates.insert(0, shift_date - timedelta(days=1))
+
+    for candidate_date in candidate_dates:
+        record = get_shift_attendance(db, employee_id, candidate_date)
+        if not record:
+            continue
+
+        last_punch = latest_punch(db, record.id)
+        if last_punch and last_punch.punch_type == "in":
+            shift_start, grace_time, shift_end = get_shift_window_for_date(candidate_date, shift)
+            return record, candidate_date, shift_start, grace_time, shift_end, last_punch
+
+    return None, shift_date, shift_start, grace_time, shift_end, None
+
+
 def approved_leave_on(db: Session, employee_id: int, target_date: date):
     return (
         db.query(Leave)
@@ -190,10 +362,13 @@ def has_leave_overlap(
 
 
 def employee_today_status(db: Session, employee, today: date | None = None):
+    today = today or date.today()
+    if today < employee_work_start_date(employee):
+        return JOINED_TODAY_STATUS
+
     if not is_assignment_complete(employee):
         return "Pending Assignment"
 
-    today = today or date.today()
     now = datetime.now()
     shift_date, shift_start, _, shift_end = get_shift_window(now, employee.shift)
 
@@ -224,10 +399,16 @@ def employee_shift_date_status(
     target_date: date,
     now: datetime | None = None,
 ):
-    if not is_assignment_complete(employee):
+    now = now or datetime.now()
+    work_start = employee_work_start_date(employee)
+
+    if target_date < work_start:
+        if uses_next_day_work_start(employee) and target_date == employee_join_date(employee):
+            return JOINED_TODAY_STATUS
         return "Pending Assignment"
 
-    now = now or datetime.now()
+    if not is_assignment_complete(employee):
+        return "Pending Assignment"
 
     if emp_joined := employee.joined_at:
         if target_date < emp_joined:
@@ -306,7 +487,7 @@ def approved_leave_days_in_month(db: Session, employee_id: int, month: int, year
     if not employee:
         return 0
 
-    join_date = employee_join_date(employee)
+    join_date = employee_work_start_date(employee)
     leaves = db.query(Leave).filter(
         Leave.employee_id == employee_id,
         Leave.status == "approved",
@@ -340,7 +521,7 @@ def elapsed_approved_leave_days_in_month(
     total_days = monthrange(year, month)[1]
     month_start = date(year, month, 1)
     month_end = date(year, month, total_days)
-    join_date = employee_join_date(employee)
+    join_date = employee_work_start_date(employee)
 
     if today < month_start:
         return 0
@@ -366,7 +547,7 @@ def elapsed_approved_leave_days_in_month(
 
 def attendance_records_in_month(db: Session, employee_id: int, month: int, year: int):
     employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    join_date = employee_join_date(employee) if employee else date(REPORT_START_YEAR, REPORT_START_MONTH, 1)
+    join_date = employee_work_start_date(employee) if employee else date(REPORT_START_YEAR, REPORT_START_MONTH, 1)
 
     return (
         db.query(Attendance)
@@ -421,7 +602,7 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
 
     month_start = date(year, month, 1)
     month_end = date(year, month, monthrange(year, month)[1])
-    join_date = employee_join_date(employee)
+    join_date = employee_work_start_date(employee)
     attendance_start = max(month_start, join_date)
 
     if month_end < join_date:

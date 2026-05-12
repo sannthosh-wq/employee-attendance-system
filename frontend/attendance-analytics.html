@@ -17,6 +17,7 @@
     <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html" class="active">Attendance Analytics</a>
+    <a href="admin-payroll.html">Payroll Management</a>
     <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
     <a href="search-employee.html">Search Employee</a>
@@ -102,6 +103,10 @@
                     <input type="date" id="analyticsDate" onchange="changeAnalyticsDate()">
                 </div>
                 <div>
+                    <label>Week</label>
+                    <input type="week" id="analyticsWeek">
+                </div>
+                <div>
                     <label>Month</label>
                     <input type="number" id="analyticsMonth" min="1" max="12" onchange="changeAnalyticsMonthYear()">
                 </div>
@@ -139,6 +144,11 @@
                         <option value="all">All Employees</option>
                     </select>
                 </div>
+            </div>
+            <div class="export-actions export-actions-wide">
+                <button type="button" onclick="downloadAttendanceExcel('daily')">Daily Excel</button>
+                <button type="button" class="secondary" onclick="downloadAttendanceExcel('weekly')">Weekly Excel</button>
+                <button type="button" class="secondary" onclick="downloadAttendanceExcel('monthly')">Monthly Excel</button>
             </div>
         </div>
 

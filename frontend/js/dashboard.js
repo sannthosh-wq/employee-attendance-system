@@ -24,11 +24,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function apiRequest(path, options = {}) {
+    const isFormData = options.body instanceof FormData;
     const response = await fetch(`${API_BASE}${path}`, {
         ...options,
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
+            ...(isFormData ? {} : { "Content-Type": "application/json" }),
             ...(options.headers || {})
         }
     });
@@ -45,20 +46,50 @@ async function apiRequest(path, options = {}) {
 async function loadDashboard() {
     try {
         const data = await apiRequest("/employee/dashboard");
+        applyInternLabels(data);
 
         setText("name", data.name);
         setText("email", data.email);
-        setText("employeeId", "Employee ID: " + data.employee_id);
+        setText("employeeId", `${data.employment_type === "intern" ? "Intern" : "Employee"} ID: ${data.employee_code || data.employee_id}`);
         setText("role", "Role: " + (data.is_assigned ? formatLabel(data.role) : "Pending Assignment"));
         setText("shift", "Shift: " + (data.is_assigned ? formatLabel(data.shift) : "Pending Assignment"));
+        setText("employmentType", "Employment Type: " + formatLabel(data.employment_type));
         setText("totalAttendanceDays", data.total_attendance_days);
         setText("totalLeaveDays", data.total_approved_leave_days);
+        setText("leaveBalance", data.leave_balance?.remaining_days ?? 0);
+        setText("leaveAllowance", data.leave_balance?.allowance ?? 0);
+        setText("leaveUsed", data.leave_balance?.approved_days ?? 0);
+        setProfilePhoto(data.profile_photo);
         setStatusBadge("todayStatus", data.today_status);
-        setVisible("punch", data.is_assigned);
-        setVisible("apply-leave", data.is_assigned);
+        const canStartWork = data.today_status !== "Joined Today - Work Starts Tomorrow";
+        setVisible("punch", data.is_assigned && canStartWork);
+        setVisible("apply-leave", data.is_assigned && canStartWork);
+        loadNotifications();
     } catch (error) {
         alert(error.message);
     }
+}
+
+function applyInternLabels(data) {
+    const isIntern = data.employment_type === "intern";
+    if (!isIntern) return;
+
+    document.title = document.title.replace("Employee", "Intern");
+    document.querySelectorAll(".employee-dashboard-label").forEach(element => {
+        element.innerText = "Intern Dashboard";
+    });
+    document.querySelectorAll(".employee-attendance-label").forEach(element => {
+        element.innerText = "Intern Attendance History";
+    });
+    document.querySelectorAll(".employee-leave-label").forEach(element => {
+        element.innerText = "Intern Apply Leave";
+    });
+
+    setText("dashboardTitle", "Intern Dashboard");
+    setText("dashboardSubtitle", "Track your internship profile, attendance, leave, and monthly summary.");
+    setText("employeeId", "Intern ID: " + (data.employee_code || data.employee_id));
+    setText("attendanceHistoryTitle", "Intern Attendance History");
+    setText("applyLeaveTitle", "Apply Leave");
 }
 
 async function punchIn() {
@@ -103,7 +134,7 @@ async function loadAttendance() {
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
-                    <td>${yesNo(record.is_late)}</td>
+                    <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
                     <td>${active ? "-" : yesNo(record.left_early)}</td>
                 </tr>
             `;
@@ -139,6 +170,92 @@ async function applyLeave() {
     } catch (error) {
         alert(error.message);
     }
+}
+
+async function uploadProfilePhoto() {
+    const input = document.getElementById("profilePhotoInput");
+    if (!input || !input.files.length) {
+        alert("Choose a profile photo first");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("photo", input.files[0]);
+
+    try {
+        const data = await apiRequest("/employee/profile-photo", {
+            method: "POST",
+            body: formData
+        });
+
+        alert(data.message);
+        setProfilePhoto(data.profile_photo);
+        input.value = "";
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadNotifications() {
+    const list = document.getElementById("notificationList");
+    if (!list) return;
+
+    try {
+        const data = await apiRequest("/notifications/my");
+        setText("notificationCount", `${data.unread_count} Unread`);
+        list.innerHTML = "";
+
+        data.notifications.forEach(item => {
+            list.innerHTML += `
+                <li class="${item.read_at ? "" : "unread-notification"}" onclick="openNotification(${item.id})">
+                    <div>
+                        ${item.title}
+                        <span>${item.read_at ? item.message : "Unread - click to view"}</span>
+                    </div>
+                    <button class="danger compact-button" onclick="deleteNotification(event, ${item.id})">Delete</button>
+                </li>
+            `;
+        });
+
+        if (!list.innerHTML) {
+            list.innerHTML = `<li class="muted">No notifications</li>`;
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function openNotification(id) {
+    try {
+        const item = await apiRequest(`/notifications/detail/${id}`);
+        alert(`${item.title}\n\n${item.message}`);
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteNotification(event, id) {
+    event.stopPropagation();
+
+    if (!confirm("Delete this notification?")) {
+        return;
+    }
+
+    try {
+        const data = await apiRequest(`/notifications/${id}`, { method: "DELETE" });
+        alert(data.message);
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function setProfilePhoto(path) {
+    const image = document.getElementById("profilePhoto");
+    if (!image) return;
+
+    image.src = path ? `${API_BASE}${path}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23d8f6f2'/%3E%3Ccircle cx='60' cy='44' r='24' fill='%230b7a75'/%3E%3Cpath d='M20 110c6-28 26-42 40-42s34 14 40 42' fill='%233157d5'/%3E%3C/svg%3E";
 }
 
 async function loadSummary() {
@@ -212,7 +329,7 @@ function formatDayCount(value) {
 
 function statusClass(status) {
     if (status === "Present" || status === "Working (Punched In)") return "success";
-    if (status === "On Leave" || status === "Not Marked") return "warning";
+    if (status === "On Leave" || status === "Not Marked" || status === "Joined Today - Work Starts Tomorrow") return "warning";
     if (status === "Pending Assignment" || status === "Shift Not Started") return "neutral";
     return "danger";
 }

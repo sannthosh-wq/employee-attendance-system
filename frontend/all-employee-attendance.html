@@ -17,6 +17,7 @@
     <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="admin-payroll.html">Payroll Management</a>
     <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
     <a href="search-employee.html">Search Employee</a>
@@ -38,9 +39,22 @@
                 <span class="muted" id="attendanceRecordCount">0 Records</span>
             </div>
             <div class="attendance-table-controls">
+                <div class="export-actions">
+                    <button type="button" onclick="downloadAttendanceExcel('daily')">Daily Excel</button>
+                    <button type="button" class="secondary" onclick="downloadAttendanceExcel('weekly')">Weekly Excel</button>
+                    <button type="button" class="secondary" onclick="downloadAttendanceExcel('monthly')">Monthly Excel</button>
+                </div>
                 <div class="record-limit-control">
                     <label>Date</label>
                     <input type="date" id="attendanceDate" onchange="renderAllAttendance()">
+                </div>
+                <div class="record-limit-control" id="attendanceWeekField">
+                    <label>Week</label>
+                    <input type="week" id="attendanceWeek" onchange="renderAllAttendance()">
+                </div>
+                <div class="record-limit-control" id="attendanceMonthField">
+                    <label>Month</label>
+                    <input type="month" id="attendanceMonth" onchange="renderAllAttendance()">
                 </div>
                 <div class="record-limit-control">
                     <label>Show</label>
@@ -61,6 +75,7 @@
                         <th>Employee</th>
                         <th>Role</th>
                         <th>Shift</th>
+                        <th>Type</th>
                         <th>Joined</th>
                         <th>Date</th>
                         <th>Login Time</th>

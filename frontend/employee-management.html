@@ -17,6 +17,7 @@
     <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="admin-payroll.html">Payroll Management</a>
     <a href="employee-management.html" class="active">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
     <a href="search-employee.html">Search Employee</a>
@@ -52,8 +53,19 @@
                 <option value="morning">Morning</option>
                 <option value="night">Night</option>
             </select>
+            <select id="employmentType">
+                <option value="">Employment Type</option>
+                <option value="full_time">Full-time</option>
+                <option value="intern">Intern</option>
+                <option value="contract">Contract</option>
+            </select>
+            <input type="number" id="internMonths" min="1" max="36" placeholder="Intern months">
+            <input type="file" id="employeeProfilePhotoInput" accept="image/*">
             <button onclick="updateRole()">Update Role</button>
             <button class="secondary" onclick="updateShift()">Update Shift</button>
+            <button class="secondary" onclick="updateEmploymentType()">Update Type</button>
+            <button class="secondary" onclick="uploadEmployeeProfilePhoto()">Upload Photo</button>
+            <button class="secondary" onclick="downloadInternAttendanceExcel()">Intern Report</button>
         </div>
 
         <div class="table-wrap">
@@ -61,10 +73,13 @@
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>Photo</th>
                         <th>Name</th>
                         <th>Email</th>
                         <th>Role</th>
                         <th>Shift</th>
+                        <th>Type</th>
+                        <th>Intern Months</th>
                         <th>Joined</th>
                         <th>Today</th>
                         <th>Actions</th>

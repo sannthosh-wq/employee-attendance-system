@@ -4,9 +4,10 @@ from database import SessionLocal
 from models import Attendance, Employee, Leave
 from deps import get_current_user
 from schemas import LeaveCreateSchema, LeaveStatusUpdateSchema
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from schemas import LeaveResponse
-from attendance_logic import has_leave_overlap, require_assignment_complete, working_leave_days
+from attendance_logic import employee_leave_balance, has_leave_overlap, require_assignment_complete, working_leave_days
+from notifications import create_notification, notify_admins
 
 router = APIRouter(
     prefix="/leave",
@@ -55,24 +56,50 @@ def admin_on_leave_today(db: Session):
     )
 
 
+def requested_leave_days_by_month(start_date: date, end_date: date):
+    days_by_month = {}
+    current = start_date
+
+    while current <= end_date:
+        if current.weekday() != 6:
+            key = (current.year, current.month)
+            days_by_month[key] = days_by_month.get(key, 0) + 1
+        current += timedelta(days=1)
+
+    return days_by_month
+
+
+def validate_monthly_leave_balance(
+    db: Session,
+    employee_id: int,
+    start_date: date,
+    end_date: date,
+    exclude_leave_id: int | None = None,
+):
+    for (year, month), requested_days in requested_leave_days_by_month(start_date, end_date).items():
+        balance = employee_leave_balance(
+            db,
+            employee_id,
+            month=month,
+            year=year,
+            exclude_leave_id=exclude_leave_id,
+        )
+
+        if requested_days > balance["remaining_days"]:
+            month_name = date(year, month, 1).strftime("%B %Y")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Leave request exceeds available leave balance for {month_name}. "
+                    f"Available: {balance['remaining_days']} day(s), requested: {requested_days} day(s)."
+                ),
+            )
+
+
 def can_update_leave(current_user, leave_owner, db: Session):
     if leave_owner.role == "super_admin":
         raise HTTPException(status_code=403, detail="Super admin leave cannot be updated")
-
-    if current_user.role == "admin":
-        if leave_owner.role == "admin":
-            raise HTTPException(status_code=403, detail="Admin leave requires super admin approval")
-        return
-
-    if current_user.role == "super_admin":
-        if leave_owner.role == "admin":
-            return
-        if admin_on_leave_today(db):
-            return
-        raise HTTPException(
-            status_code=403,
-            detail="Super admin can approve employee leave only when an admin is on leave",
-        )
+    return
 
 
 # ---------------- APPLY LEAVE (NON-ADMIN ONLY) ----------------
@@ -95,6 +122,7 @@ def apply_leave(
         raise HTTPException(status_code=400, detail="Leave request overlaps an existing leave")
 
     total_days = working_leave_days(leave_data.start_date, leave_data.end_date)
+    validate_monthly_leave_balance(db, current_user.id, leave_data.start_date, leave_data.end_date)
 
     new_leave = Leave(
         employee_id=current_user.id,
@@ -105,11 +133,20 @@ def apply_leave(
     )
 
     db.add(new_leave)
+    db.flush()
+    notify_admins(
+        db,
+        "New leave request",
+        f"{current_user.name} requested {total_days} leave day(s) from {leave_data.start_date} to {leave_data.end_date}.",
+        "leave_request",
+        current_user.id,
+    )
     db.commit()
 
     return {
         "message": "Leave applied successfully",
-        "total_days": total_days
+        "total_days": total_days,
+        "leave_balance": employee_leave_balance(db, current_user.id),
     }
 
 
@@ -148,7 +185,8 @@ def my_leave_count(
 
     return {
         "employee_id": current_user.id,
-        "total_approved_leave_days": total_days
+        "total_approved_leave_days": total_days,
+        **employee_leave_balance(db, current_user.id),
     }
 
 
@@ -163,13 +201,7 @@ def all_leaves(
 
     query = db.query(Leave, Employee).join(Employee, Leave.employee_id == Employee.id)
 
-    if current_user.role == "admin":
-        query = query.filter(Employee.role != "admin", Employee.role != "super_admin")
-    elif current_user.role == "super_admin":
-        if admin_on_leave_today(db):
-            query = query.filter(Employee.role != "super_admin")
-        else:
-            query = query.filter(Employee.role == "admin")
+    query = query.filter(Employee.role != "super_admin")
 
     return [
         {
@@ -177,8 +209,12 @@ def all_leaves(
             "employee_id": leave.employee_id,
             "employee_name": employee.name,
             "employee_role": employee.role,
+            "employee_code": employee.employee_code,
+            "employment_type": employee.employment_type,
             "start_date": leave.start_date,
             "end_date": leave.end_date,
+            "total_days": working_leave_days(leave.start_date, leave.end_date),
+            "leave_balance": employee_leave_balance(db, employee.id),
             "reason": leave.reason,
             "status": leave.status,
         }
@@ -215,6 +251,14 @@ def update_leave_status(
         raise HTTPException(status_code=400, detail="Only pending leave requests can be updated")
 
     if status_data.status == "approved":
+        validate_monthly_leave_balance(
+            db,
+            leave.employee_id,
+            leave.start_date,
+            leave.end_date,
+            exclude_leave_id=leave.id,
+        )
+
         existing_attendance = db.query(Attendance).filter(
             Attendance.employee_id == leave.employee_id,
             Attendance.date >= leave.start_date,
@@ -239,6 +283,23 @@ def update_leave_status(
         leave.cancelled_at = datetime.utcnow()
     else:
         leave.cancelled_at = None
+
+    total_days = working_leave_days(leave.start_date, leave.end_date)
+    create_notification(
+        db,
+        f"Leave {status_data.status}",
+        f"Your leave request from {leave.start_date} to {leave.end_date} was {status_data.status}.",
+        "leave_status",
+        leave.employee_id,
+        current_user.id,
+    )
+    notify_admins(
+        db,
+        "Leave decision recorded",
+        f"{current_user.name} {status_data.status} {leave_owner.name}'s {total_days} day leave request.",
+        "leave_status",
+        current_user.id,
+    )
 
     db.commit()
 

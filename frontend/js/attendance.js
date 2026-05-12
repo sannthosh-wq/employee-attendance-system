@@ -5,7 +5,10 @@ if (!token) {
     window.location.href = "login.html";
 }
 
-document.addEventListener("DOMContentLoaded", loadAttendance);
+document.addEventListener("DOMContentLoaded", async () => {
+    await applyAttendancePageContext();
+    loadAttendance();
+});
 
 async function apiRequest(path) {
     const response = await fetch(`${API_BASE}${path}`, {
@@ -21,6 +24,28 @@ async function apiRequest(path) {
     }
 
     return data;
+}
+
+async function applyAttendancePageContext() {
+    try {
+        const data = await apiRequest("/employee/dashboard");
+        if (data.employment_type !== "intern") return;
+
+        document.title = "Intern Attendance History";
+        document.querySelectorAll(".employee-dashboard-label").forEach(element => {
+            element.innerText = "Intern Dashboard";
+        });
+        document.querySelectorAll(".employee-attendance-label").forEach(element => {
+            element.innerText = "Intern Attendance History";
+        });
+        document.querySelectorAll(".employee-leave-label").forEach(element => {
+            element.innerText = "Intern Apply Leave";
+        });
+        setText("attendancePageTitle", "Intern Attendance History");
+        setText("attendancePageSubtitle", "Your internship punch in and punch out records.");
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 async function loadAttendance() {
@@ -41,7 +66,7 @@ async function loadAttendance() {
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
-                    <td>${yesNo(record.is_late)}</td>
+                    <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
                     <td>${active ? "-" : yesNo(record.left_early)}</td>
                 </tr>
             `;
@@ -70,4 +95,11 @@ function badge(text, type) {
 
 function yesNo(value) {
     return value ? badge("Yes", "warning") : badge("No", "success");
+}
+
+function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.innerText = value;
+    }
 }

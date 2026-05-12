@@ -6,13 +6,16 @@ from datetime import datetime, timedelta
 from deps import get_current_user
 from schemas import AttendanceResponse
 from attendance_logic import (
+    active_attendance_for_punch_out,
     approved_leave_on,
     attendance_day_credit,
     attendance_total_hours,
     calculate_worked_time,
+    employee_work_start_date,
     get_shift_attendance,
     get_shift_window,
     latest_punch,
+    late_minutes,
     require_assignment_complete,
 )
 
@@ -34,6 +37,8 @@ def require_attendance_user(user):
     if user.role == "super_admin":
         raise HTTPException(status_code=403, detail="Super admins do not use punch in or punch out")
     require_assignment_complete(user)
+    if datetime.now().date() < employee_work_start_date(user):
+        raise HTTPException(status_code=400, detail="Today only you have joined. Your work starts from tomorrow")
 
 
 @router.post("/punch-in")
@@ -127,17 +132,20 @@ def punch_out(
     require_attendance_user(current_user)
 
     now = datetime.now()
-    shift_date, shift_start, grace_time, shift_end = get_shift_window(now, current_user.shift)
+    (
+        record,
+        shift_date,
+        shift_start,
+        grace_time,
+        shift_end,
+        last_punch,
+    ) = active_attendance_for_punch_out(db, current_user.id, current_user.shift, now)
 
-    if now < shift_start:
+    if now < shift_start and not record:
         raise HTTPException(status_code=400, detail="Outside allowed shift hours")
-
-    record = get_shift_attendance(db, current_user.id, shift_date)
 
     if not record:
         raise HTTPException(status_code=400, detail="No active attendance found")
-
-    last_punch = latest_punch(db, record.id)
 
     if not last_punch or last_punch.punch_type != "in":
         raise HTTPException(status_code=400, detail="No active session found")
@@ -175,7 +183,10 @@ def my_attendance(
 ):
     records = (
         db.query(Attendance)
-        .filter(Attendance.employee_id == current_user.id)
+        .filter(
+            Attendance.employee_id == current_user.id,
+            Attendance.date >= employee_work_start_date(current_user),
+        )
         .order_by(Attendance.date.desc(), Attendance.login_time.desc())
         .all()
     )
@@ -189,6 +200,7 @@ def my_attendance(
             "logout_time": record.logout_time,
             "total_hours": str(attendance_total_hours(db, record)) if record.total_hours or latest_punch(db, record.id) else None,
             "is_late": record.is_late,
+            "late_minutes": late_minutes(record, current_user.shift),
             "left_early": record.left_early
         })
 

@@ -8,11 +8,11 @@
 
 <div class="sidebar">
     <h2>EMS</h2>
-    <a href="dashboard.html">Employee Dashboard</a>
+    <a href="dashboard.html" class="employee-dashboard-label">Employee Dashboard</a>
     <a href="employee-profile.html">Profile</a>
     <a href="punch.html">Punch In / Punch Out</a>
-    <a href="attendance.html" class="active">Employee Attendance History</a>
-    <a href="leave.html">Employee Apply Leave</a>
+    <a href="attendance.html" class="active employee-attendance-label">Employee Attendance History</a>
+    <a href="leave.html" class="employee-leave-label">Employee Apply Leave</a>
     <a href="monthly-summary.html">Monthly Attendance Summary</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
@@ -21,8 +21,8 @@
     <div class="dashboard">
         <div class="page-header">
             <div>
-                <h1>Employee Attendance History</h1>
-                <p>Your previous punch in and punch out records.</p>
+                <h1 id="attendancePageTitle">Employee Attendance History</h1>
+                <p id="attendancePageSubtitle">Your previous punch in and punch out records.</p>
             </div>
         </div>
 

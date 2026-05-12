@@ -1,21 +1,36 @@
-from datetime import date, datetime
+from calendar import monthrange
+from datetime import date, datetime, timedelta
+from html import escape
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import extract
+import os
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+from sqlalchemy import and_, extract, func, or_
 from sqlalchemy.orm import Session
 
 from attendance_logic import (
     VALID_ROLES,
+    VALID_EMPLOYMENT_TYPES,
     VALID_SHIFTS,
+    approved_leave_on,
+    attendance_day_credit,
     attendance_total_hours,
+    employee_leave_balance,
     employee_monthly_summary,
     employee_shift_date_status,
+    NEXT_DAY_WORK_START_FROM,
+    employee_work_start_date,
+    is_working_day,
+    late_minutes,
     working_leave_days,
 )
 from database import SessionLocal
 from deps import get_current_user
-from models import Attendance, AttendancePunch, Employee, Leave
-from schemas import RoleUpdateSchema, ShiftUpdateSchema
+from models import Announcement, Attendance, AttendancePunch, Employee, Leave
+from notifications import notify_all_employees
+from schemas import AnnouncementCreateSchema, AnnouncementUpdateSchema, EmploymentTypeUpdateSchema, RoleUpdateSchema, ShiftUpdateSchema
 
 router = APIRouter(
     prefix="/admin",
@@ -44,14 +59,47 @@ def require_super_admin(user):
 def employee_payload(emp: Employee):
     return {
         "id": emp.id,
+        "employee_code": emp.employee_code,
         "name": emp.name,
         "email": emp.email,
         "role": emp.role,
         "shift": emp.shift,
+        "employment_type": emp.employment_type or "full_time",
+        "intern_months": emp.intern_months,
+        "profile_photo": emp.profile_photo,
         "joined_at": emp.joined_at,
         "assigned_at": emp.assigned_at,
         "assignment_pending": not (emp.role and emp.shift),
     }
+
+
+def announcement_payload(item: Announcement):
+    return {
+        "id": item.id,
+        "title": item.title,
+        "message": item.message,
+        "created_by": item.created_by,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+def save_profile_photo(photo: UploadFile, employee_id: int) -> str:
+    if photo.content_type not in ["image/jpeg", "image/png", "image/webp", "image/gif"]:
+        raise HTTPException(status_code=400, detail="Profile photo must be an image")
+
+    extension = os.path.splitext(photo.filename or "")[1].lower()
+    if extension not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        extension = ".jpg"
+
+    os.makedirs("uploads/profile_photos", exist_ok=True)
+    filename = f"{employee_id}-{uuid4().hex}{extension}"
+    path = os.path.join("uploads", "profile_photos", filename)
+
+    with open(path, "wb") as output:
+        output.write(photo.file.read())
+
+    return f"/uploads/profile_photos/{filename}"
 
 
 def mark_assigned_if_ready(emp: Employee):
@@ -89,6 +137,120 @@ def build_shift_summary(db: Session, target_date: date | None = None):
             summary[shift_key]["absent_today"] += 1
 
     return summary
+
+
+def excel_response(headers, rows, filename: str):
+    html = [
+        "<html><head><meta charset='utf-8'></head><body><table border='1'>",
+        "<tr>" + "".join(f"<th>{escape(str(header))}</th>" for header in headers) + "</tr>",
+    ]
+
+    for row in rows:
+        html.append("<tr>" + "".join(f"<td>{escape(str(value or ''))}</td>" for value in row) + "</tr>")
+
+    html.append("</table></body></html>")
+    stream = iter(["".join(html).encode("utf-8")])
+
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.ms-excel",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def attendance_record_for_date(db: Session, employee_id: int, target_date: date):
+    return (
+        db.query(Attendance)
+        .filter(
+            Attendance.employee_id == employee_id,
+            Attendance.date == target_date,
+        )
+        .first()
+    )
+
+
+def employee_period_attendance_summary(db: Session, employee: Employee, start_date: date, end_date: date):
+    attendance_start = max(start_date, employee_work_start_date(employee))
+
+    if end_date < attendance_start:
+        return {
+            "working_days": 0,
+            "present_days": 0,
+            "approved_leave_days": 0,
+            "absent_days": 0,
+            "extra_work_days": 0,
+            "extra_work_hours": 0,
+            "total_hours": 0,
+            "late_count": 0,
+            "early_count": 0,
+            "attendance_percentage": 0,
+        }
+
+    records = (
+        db.query(Attendance)
+        .filter(
+            Attendance.employee_id == employee.id,
+            Attendance.date >= attendance_start,
+            Attendance.date <= end_date,
+        )
+        .all()
+    )
+    working_records = [record for record in records if is_working_day(record.date)]
+    extra_records = [record for record in records if not is_working_day(record.date)]
+    present_days = sum(
+        attendance_day_credit(record, employee.shift)
+        for record in working_records
+        if employee.shift
+    )
+
+    leave_days = 0
+    current = attendance_start
+    while current <= end_date:
+        if is_working_day(current) and approved_leave_on(db, employee.id, current):
+            leave_days += 1
+        current += timedelta(days=1)
+
+    working_days = sum(
+        1
+        for offset in range((end_date - attendance_start).days + 1)
+        if is_working_day(attendance_start + timedelta(days=offset))
+    )
+    effective_working_days = max(working_days - leave_days, 0)
+    absent_days = max(effective_working_days - present_days, 0)
+    total_hours = sum(attendance_total_hours(db, record).total_seconds() / 3600 for record in records)
+    extra_hours = sum(attendance_total_hours(db, record).total_seconds() / 3600 for record in extra_records)
+    attendance_percentage = round((present_days / effective_working_days) * 100, 2) if effective_working_days else 0
+
+    return {
+        "working_days": working_days,
+        "present_days": present_days,
+        "approved_leave_days": leave_days,
+        "absent_days": absent_days,
+        "extra_work_days": len(extra_records),
+        "extra_work_hours": round(extra_hours, 2),
+        "total_hours": round(total_hours, 2),
+        "late_count": sum(1 for record in working_records if record.is_late),
+        "early_count": sum(1 for record in working_records if record.left_early and record.logout_time),
+        "attendance_percentage": attendance_percentage,
+    }
+
+
+def parse_week_input(week: str):
+    try:
+        year_text, week_text = week.split("-W", 1)
+        week_start = date.fromisocalendar(int(year_text), int(week_text), 1)
+    except (AttributeError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Week must use YYYY-Www format")
+
+    return week_start, week_start + timedelta(days=6)
+
+
+def add_months(start_date: date, months: int):
+    month_index = start_date.month - 1 + months
+    year = start_date.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(start_date.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 @router.get("/employees")
@@ -141,9 +303,6 @@ def delete_employee(
     if emp.role == "super_admin":
         raise HTTPException(status_code=400, detail="Super admin cannot be deleted")
 
-    if emp.role == "admin" and current_user.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Only super admin can delete admins")
-
     if emp.role in ["admin", "super_admin"]:
         admin_count = db.query(Employee).filter(Employee.role.in_(["admin", "super_admin"])).count()
         if admin_count == 1:
@@ -169,7 +328,12 @@ def all_attendance(
         db.query(Attendance, Employee)
         .join(Employee, Attendance.employee_id == Employee.id)
         .filter(Employee.role != "super_admin")
-        .filter(Attendance.date >= Employee.joined_at)
+        .filter(
+            or_(
+                and_(Employee.joined_at < NEXT_DAY_WORK_START_FROM, Attendance.date >= Employee.joined_at),
+                and_(Employee.joined_at >= NEXT_DAY_WORK_START_FROM, Attendance.date > Employee.joined_at),
+            )
+        )
         .order_by(Attendance.date.desc(), Attendance.login_time.desc())
         .all()
     )
@@ -178,16 +342,19 @@ def all_attendance(
         {
             "id": attendance.id,
             "employee_id": employee.id,
+            "employee_code": employee.employee_code,
             "employee_name": employee.name,
             "email": employee.email,
             "role": employee.role,
             "shift": employee.shift,
+            "employment_type": employee.employment_type,
             "joined_at": employee.joined_at,
             "date": attendance.date,
             "login_time": attendance.login_time,
             "logout_time": attendance.logout_time,
             "total_hours": str(attendance_total_hours(db, attendance)),
             "is_late": attendance.is_late,
+            "late_minutes": late_minutes(attendance, employee.shift),
             "left_early": attendance.left_early,
         }
         for attendance, employee in records
@@ -209,10 +376,12 @@ def today_status(
         "employees": [
             {
                 "employee_id": emp.id,
+                "employee_code": emp.employee_code,
                 "name": emp.name,
                 "email": emp.email,
                 "role": emp.role,
                 "shift": emp.shift,
+                "employment_type": emp.employment_type,
                 "joined_at": emp.joined_at,
                 "status": "No Attendance" if emp.role == "super_admin" else employee_shift_date_status(db, emp, today),
             }
@@ -275,14 +444,57 @@ def update_shift(
     if emp.role == "super_admin":
         raise HTTPException(status_code=400, detail="Super admin does not have a shift")
 
-    if emp.role == "admin" and current_user.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Only super admin can change admin shifts")
-
     emp.shift = shift_data.shift
     mark_assigned_if_ready(emp)
     db.commit()
 
     return {"message": "Shift updated successfully"}
+
+
+@router.put("/employee/{id}/employment-type")
+def update_employment_type(
+    id: int,
+    employment_data: EmploymentTypeUpdateSchema,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    emp = db.query(Employee).filter(Employee.id == id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    if employment_data.employment_type not in VALID_EMPLOYMENT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid employment type")
+
+    emp.employment_type = employment_data.employment_type
+    emp.intern_months = employment_data.intern_months if employment_data.employment_type == "intern" else None
+    db.commit()
+
+    return {"message": "Employment type updated successfully"}
+
+
+@router.post("/employee/{id}/profile-photo")
+def upload_employee_profile_photo(
+    id: int,
+    photo: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    emp = db.query(Employee).filter(Employee.id == id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    emp.profile_photo = save_profile_photo(photo, emp.id)
+    db.commit()
+
+    return {
+        "message": "Profile photo uploaded successfully",
+        "employee": employee_payload(emp),
+        "profile_photo": emp.profile_photo,
+    }
 
 
 @router.put("/employee/{id}/role")
@@ -305,13 +517,9 @@ def update_role(
         raise HTTPException(status_code=400, detail="Super admin role cannot be changed")
 
     if role_data.role == "super_admin":
-        require_super_admin(current_user)
         existing_super_admin = db.query(Employee).filter(Employee.role == "super_admin").first()
         if existing_super_admin and existing_super_admin.id != id:
             raise HTTPException(status_code=400, detail="Only one super admin is allowed")
-
-    if current_user.role != "super_admin" and (emp.role == "admin" or role_data.role == "admin"):
-        raise HTTPException(status_code=403, detail="Only super admin can change admin roles")
 
     if current_user.id == id and role_data.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=400, detail="Admin cannot remove their own admin role")
@@ -354,6 +562,159 @@ def employee_leave_count(
     return {
         "employee_id": id,
         "total_approved_leave_days": total_days,
+        **employee_leave_balance(db, id),
+    }
+
+
+@router.post("/announcements")
+def create_announcement(
+    announcement: AnnouncementCreateSchema,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    if not announcement.title.strip() or not announcement.message.strip():
+        raise HTTPException(status_code=400, detail="Title and message are required")
+
+    item = Announcement(
+        title=announcement.title.strip(),
+        message=announcement.message.strip(),
+        created_by=current_user.id,
+    )
+    db.add(item)
+    db.flush()
+
+    notify_all_employees(
+        db,
+        item.title,
+        item.message,
+        "announcement",
+        current_user.id,
+    )
+    db.commit()
+    db.refresh(item)
+
+    return {"message": "Announcement sent to all employees", "announcement": announcement_payload(item)}
+
+
+@router.get("/announcements")
+def list_announcements(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    rows = (
+        db.query(Announcement)
+        .filter(Announcement.deleted_at.is_(None))
+        .order_by(Announcement.created_at.desc(), Announcement.id.desc())
+        .all()
+    )
+    return [announcement_payload(item) for item in rows]
+
+
+@router.put("/announcements/{announcement_id}")
+def update_announcement(
+    announcement_id: int,
+    announcement: AnnouncementUpdateSchema,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    item = db.query(Announcement).filter(
+        Announcement.id == announcement_id,
+        Announcement.deleted_at.is_(None),
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    if not announcement.title.strip() or not announcement.message.strip():
+        raise HTTPException(status_code=400, detail="Title and message are required")
+
+    item.title = announcement.title.strip()
+    item.message = announcement.message.strip()
+    item.updated_at = datetime.utcnow()
+    notify_all_employees(
+        db,
+        f"Updated: {item.title}",
+        item.message,
+        "announcement",
+        current_user.id,
+    )
+    db.commit()
+    db.refresh(item)
+
+    return {"message": "Announcement updated", "announcement": announcement_payload(item)}
+
+
+@router.delete("/announcements/{announcement_id}")
+def delete_announcement(
+    announcement_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    item = db.query(Announcement).filter(
+        Announcement.id == announcement_id,
+        Announcement.deleted_at.is_(None),
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    item.deleted_at = datetime.utcnow()
+    db.commit()
+
+    return {"message": "Announcement deleted"}
+
+
+@router.get("/employee-growth")
+def employee_growth(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    today = date.today()
+    join_year = extract("year", Employee.joined_at)
+    join_month = extract("month", Employee.joined_at)
+    month_rows = (
+        db.query(
+            join_year.label("year"),
+            join_month.label("month"),
+            func.count(Employee.id).label("count"),
+        )
+        .filter(Employee.role != "super_admin")
+        .group_by(join_year, join_month)
+        .order_by(join_year, join_month)
+        .all()
+    )
+    type_rows = (
+        db.query(Employee.employment_type, func.count(Employee.id))
+        .filter(Employee.role != "super_admin")
+        .group_by(Employee.employment_type)
+        .all()
+    )
+
+    return {
+        "total_employees": db.query(Employee).filter(Employee.role != "super_admin").count(),
+        "joined_this_month": db.query(Employee).filter(
+            Employee.role != "super_admin",
+            extract("month", Employee.joined_at) == today.month,
+            extract("year", Employee.joined_at) == today.year,
+        ).count(),
+        "by_employment_type": {
+            (employment_type or "full_time"): count
+            for employment_type, count in type_rows
+        },
+        "monthly": [
+            {
+                "month": f"{int(row.year)}-{int(row.month):02d}",
+                "count": row.count,
+            }
+            for row in month_rows
+        ],
     }
 
 
@@ -380,7 +741,10 @@ def admin_dashboard(
         .join(Employee, Attendance.employee_id == Employee.id)
         .filter(
             Employee.role != "super_admin",
-            Attendance.date >= Employee.joined_at,
+            or_(
+                and_(Employee.joined_at < NEXT_DAY_WORK_START_FROM, Attendance.date >= Employee.joined_at),
+                and_(Employee.joined_at >= NEXT_DAY_WORK_START_FROM, Attendance.date > Employee.joined_at),
+            ),
             extract("month", Attendance.date) == today.month,
             extract("year", Attendance.date) == today.year,
         )
@@ -420,7 +784,9 @@ def monthly_attendance_report(
         summary = employee_monthly_summary(db, emp.id, month, year)
         report.append({
             "employee_id": emp.id,
+            "employee_code": emp.employee_code,
             "name": emp.name,
+            "employment_type": emp.employment_type,
             "joined_at": emp.joined_at,
             "present_days": summary["present_days"],
             "approved_leave_days": summary["approved_leave_days"],
@@ -435,6 +801,358 @@ def monthly_attendance_report(
         "year": year,
         "total_employees": len(employees),
         "report": report,
+    }
+
+
+@router.get("/intern-attendance-report")
+def intern_attendance_report(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    interns = (
+        db.query(Employee)
+        .filter(Employee.role != "super_admin", Employee.employment_type == "intern")
+        .order_by(Employee.joined_at.asc(), Employee.id.asc())
+        .all()
+    )
+    report = []
+
+    for emp in interns:
+        months = emp.intern_months or 0
+        start_date = emp.joined_at
+        end_date = add_months(start_date, months) - timedelta(days=1) if months else date.today()
+        summary = employee_period_attendance_summary(db, emp, start_date, end_date)
+        report.append({
+            "employee_id": emp.id,
+            "employee_code": emp.employee_code,
+            "name": emp.name,
+            "email": emp.email,
+            "shift": emp.shift,
+            "joined_at": emp.joined_at,
+            "intern_months": emp.intern_months,
+            "intern_start": start_date,
+            "intern_end": end_date,
+            **summary,
+        })
+
+    return {"total_interns": len(report), "report": report}
+
+
+@router.get("/intern-attendance-report/excel")
+def intern_attendance_report_excel(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    data = intern_attendance_report(current_user, db)
+    headers = [
+        "Employee Code",
+        "Name",
+        "Email",
+        "Shift",
+        "Joined",
+        "Intern Months",
+        "Intern Start",
+        "Intern End",
+        "Working Days",
+        "Present Days",
+        "Approved Leave Days",
+        "Absent Days",
+        "Total Hours",
+        "Attendance Percentage",
+    ]
+    rows = [
+        [
+            row["employee_code"],
+            row["name"],
+            row["email"],
+            row["shift"],
+            row["joined_at"],
+            row["intern_months"],
+            row["intern_start"],
+            row["intern_end"],
+            row["working_days"],
+            row["present_days"],
+            row["approved_leave_days"],
+            row["absent_days"],
+            row["total_hours"],
+            row["attendance_percentage"],
+        ]
+        for row in data["report"]
+    ]
+    return excel_response(headers, rows, "intern-attendance-report.xls")
+
+
+@router.get("/monthly-attendance-report/excel")
+def monthly_attendance_report_excel(
+    month: int,
+    year: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    data = monthly_attendance_report(month, year, current_user, db)
+    headers = [
+        "Employee Code",
+        "Name",
+        "Employment Type",
+        "Joined",
+        "Present Days",
+        "Approved Leave Days",
+        "Effective Working Days",
+        "Extra Work Days",
+        "Extra Work Hours",
+        "Attendance Percentage",
+    ]
+
+    html = [
+        "<html><head><meta charset='utf-8'></head><body><table border='1'>",
+        "<tr>" + "".join(f"<th>{escape(header)}</th>" for header in headers) + "</tr>",
+    ]
+
+    for row in data["report"]:
+        values = [
+            row["employee_code"],
+            row["name"],
+            row["employment_type"],
+            row["joined_at"],
+            row["present_days"],
+            row["approved_leave_days"],
+            row["effective_working_days"],
+            row["extra_work_days"],
+            row["extra_work_hours"],
+            row["attendance_percentage"],
+        ]
+        html.append("<tr>" + "".join(f"<td>{escape(str(value or ''))}</td>" for value in values) + "</tr>")
+
+    html.append("</table></body></html>")
+    stream = iter(["".join(html).encode("utf-8")])
+
+    filename = f"attendance-report-{year}-{month:02d}.xls"
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.ms-excel",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/attendance-report/excel")
+def attendance_report_excel(
+    period: str,
+    selected_date: date | None = None,
+    week: str | None = None,
+    month: int | None = None,
+    year: int | None = None,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    employees = (
+        db.query(Employee)
+        .filter(Employee.role != "super_admin")
+        .order_by(Employee.id.asc())
+        .all()
+    )
+
+    if period == "daily":
+        report_date = selected_date or date.today()
+        headers = [
+            "Employee Code",
+            "Name",
+            "Email",
+            "Role",
+            "Shift",
+            "Employment Type",
+            "Date",
+            "Status",
+            "Login Time",
+            "Logout Time",
+            "Total Hours",
+            "Late",
+            "Late Minutes",
+            "Left Early",
+        ]
+        rows = []
+
+        for emp in employees:
+            record = attendance_record_for_date(db, emp.id, report_date)
+            status = employee_shift_date_status(db, emp, report_date)
+            is_leave = status == "On Leave"
+            rows.append([
+                emp.employee_code,
+                emp.name,
+                emp.email,
+                emp.role,
+                emp.shift,
+                emp.employment_type,
+                report_date,
+                "Leave" if is_leave else status,
+                "Leave" if is_leave else (record.login_time if record else ""),
+                "Leave" if is_leave else (record.logout_time if record else ""),
+                "Leave" if is_leave else (str(attendance_total_hours(db, record)) if record else ""),
+                "Leave" if is_leave else ("Yes" if record and record.is_late else "No"),
+                "Leave" if is_leave else (late_minutes(record, emp.shift) if record else 0),
+                "Leave" if is_leave else ("Yes" if record and record.left_early else "No"),
+            ])
+
+        return excel_response(headers, rows, f"daily-attendance-report-{report_date}.xls")
+
+    if period == "weekly":
+        if not week:
+            today = date.today()
+            week_start = today - timedelta(days=today.weekday())
+            week_end = week_start + timedelta(days=6)
+            week = f"{week_start.isocalendar().year}-W{week_start.isocalendar().week:02d}"
+        else:
+            week_start, week_end = parse_week_input(week)
+
+        headers = [
+            "Employee Code",
+            "Name",
+            "Email",
+            "Role",
+            "Shift",
+            "Employment Type",
+            "Week Start",
+            "Week End",
+            "Working Days",
+            "Present Days",
+            "Approved Leave Days",
+            "Absent Days",
+            "Extra Work Days",
+            "Extra Work Hours",
+            "Total Hours",
+            "Late Count",
+            "Left Early Count",
+            "Attendance Percentage",
+        ]
+        rows = []
+
+        for emp in employees:
+            summary = employee_period_attendance_summary(db, emp, week_start, week_end)
+            rows.append([
+                emp.employee_code,
+                emp.name,
+                emp.email,
+                emp.role,
+                emp.shift,
+                emp.employment_type,
+                week_start,
+                week_end,
+                summary["working_days"],
+                summary["present_days"],
+                summary["approved_leave_days"],
+                summary["absent_days"],
+                summary["extra_work_days"],
+                summary["extra_work_hours"],
+                summary["total_hours"],
+                summary["late_count"],
+                summary["early_count"],
+                summary["attendance_percentage"],
+            ])
+
+        return excel_response(headers, rows, f"weekly-attendance-report-{week}.xls")
+
+    if period == "monthly":
+        today = date.today()
+        month = month or today.month
+        year = year or today.year
+        return monthly_attendance_report_excel(month, year, current_user, db)
+
+    raise HTTPException(status_code=400, detail="Period must be daily, weekly, or monthly")
+
+
+@router.get("/daily-attendance-trend")
+def daily_attendance_trend(
+    month: int,
+    year: int,
+    shift: str = "all",
+    role: str = "all",
+    employee_id: int | None = None,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+
+    month_start = date(year, month, 1)
+    month_end = date(year, month, monthrange(year, month)[1])
+    employees_query = db.query(Employee).filter(
+        Employee.role != "super_admin",
+        Employee.role.isnot(None),
+        Employee.shift.isnot(None),
+    )
+
+    if shift != "all":
+        employees_query = employees_query.filter(Employee.shift == shift)
+    if role != "all":
+        employees_query = employees_query.filter(Employee.role == role)
+    if employee_id:
+        employees_query = employees_query.filter(Employee.id == employee_id)
+
+    selected_employees = employees_query.order_by(Employee.id.asc()).all()
+    records = (
+        db.query(Attendance)
+        .filter(
+            Attendance.employee_id.in_([emp.id for emp in selected_employees]) if selected_employees else False,
+            Attendance.date >= month_start,
+            Attendance.date <= month_end,
+        )
+        .all()
+    )
+    records_by_key = {(record.employee_id, record.date): record for record in records}
+
+    daily = []
+    for day in range(1, month_end.day + 1):
+        current = date(year, month, day)
+        working_day = current.weekday() != 6
+        item = {
+            "date": current,
+            "label": f"{day} Sun" if not working_day else str(day),
+            "is_working_day": working_day,
+            "scheduled": 0,
+            "present": 0,
+            "leave": 0,
+            "absent": 0,
+            "hours": 0,
+            "late": 0,
+            "early": 0,
+        }
+
+        for emp in selected_employees:
+            status = employee_shift_date_status(db, emp, current)
+            record = records_by_key.get((emp.id, current))
+
+            if status in ["Pending Assignment", "Shift Not Started", "Joined Today - Work Starts Tomorrow"]:
+                continue
+
+            if working_day:
+                item["scheduled"] += 1
+
+            if working_day:
+                if status in ["Present", "Working (Punched In)"]:
+                    item["present"] += 1
+                elif status == "On Leave":
+                    item["leave"] += 1
+                elif status == "Absent":
+                    item["absent"] += 1
+
+            if record:
+                item["hours"] += round(attendance_total_hours(db, record).total_seconds() / 3600, 2)
+                if working_day:
+                    item["late"] += 1 if record.is_late else 0
+                    item["early"] += 1 if record.left_early and record.logout_time else 0
+
+        item["hours"] = round(item["hours"], 2)
+        daily.append(item)
+
+    return {
+        "month": month,
+        "year": year,
+        "total_employees": len(selected_employees),
+        "daily": daily,
     }
 
 

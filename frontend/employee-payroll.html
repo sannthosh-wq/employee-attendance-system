@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Payroll</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="dashboard.html">Employee Dashboard</a>
+    <a href="employee-profile.html">Profile</a>
+    <a href="punch.html">Punch In / Punch Out</a>
+    <a href="attendance.html">Employee Attendance History</a>
+    <a href="leave.html">Employee Apply Leave</a>
+    <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="employee-payroll.html" class="active">My Payroll</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="dashboard">
+        <div class="page-header">
+            <div>
+                <h1>My Payroll</h1>
+                <p>View processed salaries and download monthly payslips.</p>
+            </div>
+            <span class="badge success" id="payrollStatus">Payroll</span>
+        </div>
+
+        <div class="cards">
+            <div class="card kpi">
+                <h3>Latest Net Salary</h3>
+                <p id="latestNetSalary">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Latest Gross Salary</h3>
+                <p id="latestGrossSalary">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Total Deductions</h3>
+                <p id="latestDeductions">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Records</h3>
+                <p id="payrollRecordTotal">0</p>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>Payroll Records</h3>
+                <span class="badge" id="myPayrollCount">0 Records</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Total Days</th>
+                            <th>Present</th>
+                            <th>Paid Leave</th>
+                            <th>Absent</th>
+                            <th>Gross</th>
+                            <th>PF</th>
+                            <th>Tax</th>
+                            <th>LOP</th>
+                            <th>Net</th>
+                            <th>Payslip</th>
+                        </tr>
+                    </thead>
+                    <tbody id="myPayrollTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/payroll.js"></script>
+
+</body>
+</html>

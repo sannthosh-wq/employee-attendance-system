@@ -14,6 +14,8 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
+VALID_EMPLOYMENT_TYPES = {"full_time", "intern", "contract"}
+
 def get_db():
     db = SessionLocal()
     try:
@@ -27,20 +29,26 @@ def register(user: RegisterSchema, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
 
+    if user.employment_type not in VALID_EMPLOYMENT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid employment type")
+
     new_user = Employee(
         name=user.name,
         email=user.email,
         password=hash_password(user.password),
         role=None,
         shift=None,
+        employment_type=user.employment_type,
         joined_at=date.today(),
         assigned_at=None,
     )
 
     db.add(new_user)
+    db.flush()
+    new_user.employee_code = f"EMS-{new_user.joined_at.year}-{new_user.id:04d}"
     db.commit()
 
-    return {"message": "User registered"}
+    return {"message": "User registered", "employee_code": new_user.employee_code}
 
 @router.post("/login")
 def login(user: LoginSchema, db: Session = Depends(get_db)):

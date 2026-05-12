@@ -7,6 +7,8 @@ if (!token) {
 
 document.addEventListener("DOMContentLoaded", async () => {
     if (await redirectSuperAdminLeavePage()) return;
+    loadLeaveBalance();
+    loadNotifications();
     loadLeaves();
 });
 
@@ -69,7 +71,79 @@ async function applyLeave() {
         setValue("startDate", "");
         setValue("endDate", "");
         setValue("reason", "");
+        loadLeaveBalance();
+        loadNotifications();
         loadLeaves();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadLeaveBalance() {
+    const remaining = document.getElementById("leaveBalance");
+    if (!remaining) return;
+
+    try {
+        const data = await apiRequest("/leave/my-leave-count");
+        remaining.innerText = data.remaining_days;
+        setText("leaveAllowance", data.allowance);
+        setText("leaveUsed", data.approved_days);
+        setText("leavePending", data.pending_days);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadNotifications() {
+    const list = document.getElementById("notificationList");
+    if (!list) return;
+
+    try {
+        const data = await apiRequest("/notifications/my");
+        setText("notificationCount", `${data.unread_count} Unread`);
+        list.innerHTML = "";
+
+        data.notifications.forEach(item => {
+            list.innerHTML += `
+                <li class="${item.read_at ? "" : "unread-notification"}" onclick="openNotification(${item.id})">
+                    <div>
+                        ${item.title}
+                        <span>${item.read_at ? item.message : "Unread - click to view"}</span>
+                    </div>
+                    <button class="danger compact-button" onclick="deleteNotification(event, ${item.id})">Delete</button>
+                </li>
+            `;
+        });
+
+        if (!list.innerHTML) {
+            list.innerHTML = `<li class="muted">No notifications</li>`;
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function openNotification(id) {
+    try {
+        const item = await apiRequest(`/notifications/detail/${id}`);
+        alert(`${item.title}\n\n${item.message}`);
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteNotification(event, id) {
+    event.stopPropagation();
+
+    if (!confirm("Delete this notification?")) {
+        return;
+    }
+
+    try {
+        const data = await apiRequest(`/notifications/${id}`, { method: "DELETE" });
+        alert(data.message);
+        loadNotifications();
     } catch (error) {
         alert(error.message);
     }
@@ -118,4 +192,9 @@ function getValue(id) {
 function setValue(id, value) {
     const element = document.getElementById(id);
     if (element) element.value = value;
+}
+
+function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.innerText = value;
 }

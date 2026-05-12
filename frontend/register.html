@@ -7,20 +7,37 @@
 <body class="auth-page">
 
 <div class="container">
-    <h2>Employee Register</h2>
+    <div class="auth-brand">
+        <div class="auth-logo">EMS</div>
+        <div>
+            <h2>Employee Register</h2>
+            <p>Create your account</p>
+        </div>
+    </div>
 
-    <input type="text" id="name" placeholder="Enter Name">
-    <input type="email" id="email" placeholder="Enter Email">
-    <input type="password" id="password" placeholder="Enter Password">
+    <div class="auth-fields">
+        <input type="text" id="name" placeholder="Enter Name">
+        <input type="email" id="email" placeholder="Enter Email">
+        <select id="employmentType">
+            <option value="full_time">Full-time</option>
+            <option value="intern">Intern</option>
+            <option value="contract">Contract</option>
+        </select>
+        <div class="password-field">
+            <input type="password" id="password" placeholder="Enter Password">
+            <button type="button" class="password-toggle" onclick="togglePassword('password', this)">Show</button>
+        </div>
+    </div>
 
-    <button onclick="register()">Register</button>
+    <button class="auth-primary" onclick="register()">Register</button>
 
-    <p>
+    <p class="auth-link-row">
         Already have account?
         <a href="login.html">Login</a>
     </p>
 </div>
 
+<script src="js/auth.js"></script>
 <script src="js/register.js"></script>
 
 </body>

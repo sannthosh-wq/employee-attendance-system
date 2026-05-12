@@ -13,9 +13,14 @@
     <a href="admin-punch.html">Admin Punch In / Punch Out</a>
     <a href="admin-leave.html">Admin Apply Leave</a>
     <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="admin-payroll.html">Payroll Management</a>
+    <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
@@ -32,11 +37,16 @@
         <div class="dashboard-grid two-columns">
             <div class="card profile-card" id="admin-profile">
                 <h3>Admin Profile</h3>
+                <img class="profile-photo" id="profilePhoto" alt="Profile photo">
                 <div class="profile-name" id="adminName">-</div>
                 <p id="adminEmail">-</p>
                 <p id="adminId">Admin ID: -</p>
                 <p id="adminRole">Role: -</p>
                 <p id="adminShift">Shift: -</p>
+                <p id="adminEmploymentType">Employment Type: -</p>
+                <label>Profile Photo</label>
+                <input type="file" id="profilePhotoInput" accept="image/*">
+                <button onclick="uploadProfilePhoto()">Upload Photo</button>
             </div>
 
             <div class="card action-card" id="admin-punch">
@@ -74,6 +84,41 @@
                 <span class="badge warning" id="pendingAssignments">0 Pending</span>
             </div>
             <ul id="onboardingNotificationList"></ul>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card">
+                <div class="section-heading">
+                    <h3>Send Announcement</h3>
+                    <span class="badge success">All Employees</span>
+                </div>
+                <input type="text" id="announcementTitle" placeholder="Announcement title">
+                <input type="text" id="announcementMessage" placeholder="Message">
+                <button onclick="sendAnnouncement()">Send Announcement</button>
+                <ul class="managed-list" id="announcementList"></ul>
+            </div>
+
+            <div class="card status-list">
+                <div class="section-heading">
+                    <h3>Notifications</h3>
+                    <span class="badge warning" id="notificationCount">0 Unread</span>
+                </div>
+                <ul id="notificationList"></ul>
+            </div>
+        </div>
+
+        <div class="card status-list">
+            <div class="section-heading">
+                <h3>Employee Growth</h3>
+                <span class="badge success"><span id="growthThisMonth">0</span> This Month</span>
+            </div>
+            <div class="shift-metrics">
+                <div><span>Total</span><strong id="growthTotalEmployees">0</strong></div>
+                <div><span>Full Time</span><strong id="growthFullTime">0</strong></div>
+                <div><span>Intern</span><strong id="growthIntern">0</strong></div>
+                <div><span>Contract</span><strong id="growthContract">0</strong></div>
+            </div>
+            <ul id="growthMonthlyList"></ul>
         </div>
 
         <div class="card">

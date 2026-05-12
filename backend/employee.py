@@ -1,12 +1,14 @@
+import os
 from datetime import date
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from attendance_logic import employee_monthly_summary, employee_shift_date_status, is_working_day, working_leave_days
+from attendance_logic import employee_leave_balance, employee_monthly_summary, employee_shift_date_status, employee_work_start_date, is_working_day, working_leave_days
 from database import SessionLocal
 from deps import get_current_user
-from models import Attendance, Leave
+from models import Attendance, Employee, Leave
 
 router = APIRouter(prefix="/employee")
 
@@ -36,9 +38,10 @@ def employee_dashboard(
     )
 
     joined_at = current_user.joined_at or date(2026, 5, 1)
+    work_start_date = employee_work_start_date(current_user)
     attendance_records = db.query(Attendance).filter(
         Attendance.employee_id == current_user.id,
-        Attendance.date >= joined_at,
+        Attendance.date >= work_start_date,
     ).all()
     total_attendance_days = sum(1 for record in attendance_records if is_working_day(record.date))
 
@@ -48,16 +51,54 @@ def employee_dashboard(
 
     return {
         "employee_id": current_user.id,
+        "employee_code": current_user.employee_code,
         "name": current_user.name,
         "email": current_user.email,
         "role": current_user.role,
         "shift": current_user.shift,
+        "employment_type": current_user.employment_type or "full_time",
+        "profile_photo": current_user.profile_photo,
         "joined_at": joined_at,
+        "work_start_date": work_start_date,
         "assigned_at": current_user.assigned_at,
         "is_assigned": bool(current_user.role and current_user.shift),
         "total_approved_leave_days": total_leave_days,
+        "leave_balance": employee_leave_balance(db, current_user.id),
         "total_attendance_days": total_attendance_days,
         "today_status": today_status,
+    }
+
+
+@router.post("/profile-photo")
+def upload_profile_photo(
+    photo: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if photo.content_type not in ["image/jpeg", "image/png", "image/webp", "image/gif"]:
+        raise HTTPException(status_code=400, detail="Profile photo must be an image")
+
+    extension = os.path.splitext(photo.filename or "")[1].lower()
+    if extension not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        extension = ".jpg"
+
+    os.makedirs("uploads/profile_photos", exist_ok=True)
+    filename = f"{current_user.id}-{uuid4().hex}{extension}"
+    path = os.path.join("uploads", "profile_photos", filename)
+
+    with open(path, "wb") as output:
+        output.write(photo.file.read())
+
+    employee = db.query(Employee).filter(Employee.id == current_user.id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    employee.profile_photo = f"/uploads/profile_photos/{filename}"
+    db.commit()
+
+    return {
+        "message": "Profile photo uploaded successfully",
+        "profile_photo": employee.profile_photo,
     }
 
 

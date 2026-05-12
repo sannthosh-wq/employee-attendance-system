@@ -40,6 +40,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         loadDashboard();
     }
 
+    loadNotifications();
+    loadAnnouncements();
+    loadEmployeeGrowth();
+
     if (document.getElementById("morningTotal")) {
         loadShiftSummary();
     }
@@ -94,11 +98,12 @@ function applyRoleBasedUi() {
 }
 
 async function apiRequest(path, options = {}) {
+    const isFormData = options.body instanceof FormData;
     const response = await fetch(`${API_BASE}${path}`, {
         ...options,
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
+            ...(isFormData ? {} : { "Content-Type": "application/json" }),
             ...(options.headers || {})
         }
     });
@@ -118,13 +123,16 @@ async function loadAdminProfile() {
 
         setText("adminName", data.name);
         setText("adminEmail", data.email);
-        setText("adminId", "Admin ID: " + data.employee_id);
+        setText("adminId", "Admin ID: " + (data.employee_code || data.employee_id));
+        setText("adminEmploymentType", "Employment Type: " + formatLabel(data.employment_type));
+        setProfilePhoto(data.profile_photo);
         if (data.role !== "super_admin") {
             setText("adminRole", "Role: " + formatLabel(data.role));
             setText("adminShift", "Shift: " + formatLabel(data.shift));
         }
         setText("adminTotalAttendanceDays", data.total_attendance_days);
         setText("adminApprovedLeaveDays", data.total_approved_leave_days);
+        setText("adminLeaveBalance", data.leave_balance?.remaining_days ?? 0);
         setStatusBadge("adminTodayStatus", data.today_status);
     } catch (error) {
         alert(error.message);
@@ -173,6 +181,217 @@ async function loadOnboardingNotifications() {
         });
 
         emptyList(list);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function uploadProfilePhoto() {
+    const input = document.getElementById("profilePhotoInput");
+    if (!input || !input.files.length) {
+        alert("Choose a profile photo first");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("photo", input.files[0]);
+
+    try {
+        const data = await apiRequest("/employee/profile-photo", {
+            method: "POST",
+            body: formData
+        });
+
+        alert(data.message);
+        setProfilePhoto(data.profile_photo);
+        input.value = "";
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function setProfilePhoto(path) {
+    const image = document.getElementById("profilePhoto");
+    if (!image) return;
+
+    image.src = profilePhotoSrc(path);
+}
+
+function profilePhotoSrc(path) {
+    return path ? `${API_BASE}${path}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23d8f6f2'/%3E%3Ccircle cx='60' cy='44' r='24' fill='%230b7a75'/%3E%3Cpath d='M20 110c6-28 26-42 40-42s34 14 40 42' fill='%233157d5'/%3E%3C/svg%3E";
+}
+
+async function loadNotifications() {
+    const list = document.getElementById("notificationList");
+    if (!list) return;
+
+    try {
+        const data = await apiRequest("/notifications/my");
+        setText("notificationCount", `${data.unread_count} Unread`);
+        list.innerHTML = "";
+
+        data.notifications.forEach(item => {
+            list.innerHTML += `
+                <li class="${item.read_at ? "" : "unread-notification"}" onclick="openNotification(${item.id})">
+                    <div>
+                        ${item.title}
+                        <span>${formatDateTime(item.created_at)} ${item.read_at ? "" : "- Unread"}</span>
+                    </div>
+                    <button class="danger compact-button" onclick="deleteNotification(event, ${item.id})">Delete</button>
+                </li>
+            `;
+        });
+
+        if (data.notifications.length) {
+            list.innerHTML += `<li><button class="secondary compact-button" onclick="event.stopPropagation(); markAllNotificationsRead()">Mark all as read</button></li>`;
+        }
+
+        emptyList(list);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function openNotification(id) {
+    try {
+        const item = await apiRequest(`/notifications/detail/${id}`);
+        alert(`${item.title}\n\n${item.message}`);
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function markAllNotificationsRead() {
+    try {
+        const data = await apiRequest("/notifications/read-all", { method: "PUT" });
+        alert(data.message);
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteNotification(event, id) {
+    event.stopPropagation();
+
+    if (!confirm("Delete this notification?")) {
+        return;
+    }
+
+    try {
+        const data = await apiRequest(`/notifications/${id}`, { method: "DELETE" });
+        alert(data.message);
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function sendAnnouncement() {
+    const title = getValue("announcementTitle");
+    const message = getValue("announcementMessage");
+
+    if (!title || !message) {
+        alert("Enter announcement title and message");
+        return;
+    }
+
+    try {
+        const data = await apiRequest("/admin/announcements", {
+            method: "POST",
+            body: JSON.stringify({ title, message })
+        });
+
+        alert(data.message);
+        setValue("announcementTitle", "");
+        setValue("announcementMessage", "");
+        loadAnnouncements();
+        loadNotifications();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadAnnouncements() {
+    const list = document.getElementById("announcementList");
+    if (!list) return;
+
+    try {
+        const rows = await apiRequest("/admin/announcements");
+        list.innerHTML = "";
+        rows.forEach(item => {
+            list.innerHTML += `
+                <li>
+                    ${item.title}
+                    <span>${item.message}</span>
+                    <div class="inline-actions">
+                        <button class="secondary compact-button" onclick="editAnnouncement(${item.id})">Edit</button>
+                        <button class="danger compact-button" onclick="deleteAnnouncement(${item.id})">Delete</button>
+                    </div>
+                </li>
+            `;
+        });
+        emptyList(list);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function editAnnouncement(id) {
+    const rows = await apiRequest("/admin/announcements");
+    const item = rows.find(row => row.id === id);
+    if (!item) return;
+
+    const title = prompt("Announcement title", item.title);
+    if (title === null) return;
+
+    const message = prompt("Announcement message", item.message);
+    if (message === null) return;
+
+    try {
+        const data = await apiRequest(`/admin/announcements/${id}`, {
+            method: "PUT",
+            body: JSON.stringify({ title, message })
+        });
+        alert(data.message);
+        loadAnnouncements();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteAnnouncement(id) {
+    if (!confirm("Delete this announcement?")) return;
+
+    try {
+        const data = await apiRequest(`/admin/announcements/${id}`, { method: "DELETE" });
+        alert(data.message);
+        loadAnnouncements();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadEmployeeGrowth() {
+    if (!document.getElementById("growthTotalEmployees")) return;
+
+    try {
+        const data = await apiRequest("/admin/employee-growth");
+        setText("growthTotalEmployees", data.total_employees);
+        setText("growthThisMonth", data.joined_this_month);
+        setText("growthFullTime", data.by_employment_type.full_time || 0);
+        setText("growthIntern", data.by_employment_type.intern || 0);
+        setText("growthContract", data.by_employment_type.contract || 0);
+
+        const list = document.getElementById("growthMonthlyList");
+        if (list) {
+            list.innerHTML = "";
+            data.monthly.slice(-6).reverse().forEach(item => {
+                list.innerHTML += `<li>${item.month}<span>${item.count} joined</span></li>`;
+            });
+            emptyList(list);
+        }
     } catch (error) {
         alert(error.message);
     }
@@ -267,11 +486,14 @@ function renderEmployees() {
 
             table.innerHTML += `
                 <tr>
-                    <td>${emp.id}</td>
+                    <td>${emp.employee_code || emp.id}</td>
+                    <td><img class="table-avatar" src="${profilePhotoSrc(emp.profile_photo)}" alt="${emp.name} profile photo"></td>
                     <td>${emp.name}</td>
                     <td>${emp.email}</td>
                     <td>${formatLabel(emp.role)}</td>
                     <td>${formatLabel(emp.shift)}</td>
+                    <td>${formatLabel(emp.employment_type)}</td>
+                    <td>${emp.employment_type === "intern" ? (emp.intern_months || "-") : "-"}</td>
                     <td>${formatDate(emp.joined_at)}</td>
                     <td>${badge(status, statusClass(status))}</td>
                     <td>
@@ -282,7 +504,7 @@ function renderEmployees() {
             `;
         });
 
-    emptyTable(table, 8);
+    emptyTable(table, 11);
 }
 
 async function loadAdminAttendanceHistory() {
@@ -303,7 +525,7 @@ async function loadAdminAttendanceHistory() {
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
-                    <td>${yesNo(record.is_late)}</td>
+                    <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
                     <td>${active ? "-" : yesNo(record.left_early)}</td>
                 </tr>
             `;
@@ -321,6 +543,7 @@ function setupAttendanceAnalytics() {
 
     const now = new Date();
     setValue("analyticsDate", formatInputDate(now));
+    setValue("analyticsWeek", getWeekInputValue(now));
     setValue("analyticsMonth", now.getMonth() + 1);
     setValue("analyticsYear", now.getFullYear());
     loadAttendanceAnalytics();
@@ -336,18 +559,19 @@ async function loadAttendanceAnalytics() {
     if (!month || !year || !selectedDate) return;
 
     try {
-        const [dailySummary, employeeData, attendanceRecords, monthlyReport, warnings] = await Promise.all([
+        const [dailySummary, employeeData, attendanceRecords, monthlyReport, warnings, trendData] = await Promise.all([
             loadDailyAnalyticsSummary(selectedDate),
             apiRequest("/admin/employees"),
             apiRequest("/admin/attendance"),
             apiRequest(`/admin/monthly-attendance-report?month=${month}&year=${year}`),
-            loadLowAttendanceWarnings(month, year)
+            loadLowAttendanceWarnings(month, year),
+            loadDailyTrend(month, year)
         ]);
 
         employees = employeeData;
         allAttendanceRecords = attendanceRecords;
         populateAnalyticsEmployeeFilter();
-        renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attendanceRecords);
+        renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attendanceRecords, trendData.daily || []);
     } catch (error) {
         alert(error.message);
     }
@@ -392,12 +616,35 @@ async function loadLowAttendanceWarnings(month, year) {
     }
 }
 
-function renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attendanceRecords) {
+async function loadDailyTrend(month, year) {
+    const params = new URLSearchParams({
+        month,
+        year,
+        shift: getValue("analyticsShift") || "all",
+        role: getValue("analyticsRole") || "all"
+    });
+    const selectedEmployee = getValue("analyticsEmployee") || "all";
+
+    if (selectedEmployee !== "all") {
+        params.set("employee_id", selectedEmployee);
+    }
+
+    try {
+        return await apiRequest(`/admin/daily-attendance-trend?${params.toString()}`);
+    } catch (error) {
+        return { month, year, total_employees: 0, daily: [] };
+    }
+}
+
+function renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attendanceRecords, trendDaily = []) {
     setText("analyticsDateLabel", dailySummary.date || "Selected Day");
     setText("analyticsTotalLabel", `${dailySummary.total_employees} Employees`);
     setText("analyticsMonthLabel", `${pad2(monthlyReport.month)}-${monthlyReport.year}`);
 
     const model = buildAnalyticsModel(monthlyReport.report, attendanceRecords, monthlyReport.month, monthlyReport.year);
+    if (trendDaily.length) {
+        model.daily = normalizeTrendDaily(trendDaily);
+    }
 
     setText("totalEmployees", dailySummary.total_employees);
     setText("presentToday", dailySummary.present_today);
@@ -427,9 +674,32 @@ function renderAnalyticsDashboard(dailySummary, monthlyReport, warnings, attenda
     renderAnalyticsDetailTable(model.report, model.employeeStats);
 }
 
+function normalizeTrendDaily(daily) {
+    return daily.map(item => {
+        const parsedDate = parseRecordDate(item.date);
+        const isWorkingDay = item.is_working_day !== undefined
+            ? Boolean(item.is_working_day)
+            : !(parsedDate && isSunday(parsedDate));
+
+        return {
+            id: item.date,
+            label: item.label,
+            isWorkingDay,
+            scheduled: Number(item.scheduled || 0),
+            present: Number(item.present || 0),
+            leave: Number(item.leave || 0),
+            absent: Number(item.absent || 0),
+            hours: Number(item.hours || 0),
+            late: Number(item.late || 0),
+            early: Number(item.early || 0)
+        };
+    });
+}
+
 function changeAnalyticsDate() {
     const selectedDate = parseRecordDate(getValue("analyticsDate"));
     if (selectedDate) {
+        setValue("analyticsWeek", getWeekInputValue(selectedDate));
         setValue("analyticsMonth", selectedDate.getMonth() + 1);
         setValue("analyticsYear", selectedDate.getFullYear());
     }
@@ -544,7 +814,11 @@ function buildDailyAnalytics(records, month, year) {
         daily.push({
             id,
             label: isSunday(current) ? `${day} Sun` : String(day),
+            isWorkingDay: !isSunday(current),
+            scheduled: 0,
             present: 0,
+            leave: 0,
+            absent: 0,
             hours: 0,
             late: 0,
             early: 0
@@ -565,8 +839,10 @@ function buildDailyAnalytics(records, month, year) {
         }
 
         item.hours += durationToHours(record.total_hours);
-        item.late += record.is_late ? 1 : 0;
-        item.early += record.left_early && record.logout_time ? 1 : 0;
+        if (!isSunday(parseRecordDate(record.date))) {
+            item.late += record.is_late ? 1 : 0;
+            item.early += record.left_early && record.logout_time ? 1 : 0;
+        }
     });
 
     return daily;
@@ -662,15 +938,16 @@ function renderAllAttendance() {
 
         table.innerHTML += `
             <tr>
-                <td>${record.employee_name}</td>
+                <td>${record.employee_name}<br><span class="muted">${record.employee_code || record.employee_id}</span></td>
                 <td>${formatLabel(record.role)}</td>
                 <td>${formatLabel(record.shift)}</td>
+                <td>${formatLabel(record.employment_type)}</td>
                 <td>${formatDate(record.joined_at)}</td>
                 <td>${record.date}</td>
                 <td>${formatDateTime(record.login_time)}</td>
                 <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                 <td>${formatDuration(record.total_hours)}</td>
-                <td>${yesNo(record.is_late)}</td>
+                <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
                 <td>${active ? "-" : yesNo(record.left_early)}</td>
             </tr>
         `;
@@ -678,7 +955,7 @@ function renderAllAttendance() {
 
     setText("attendanceRecordCount", attendanceRecordCountText(visibleRecords.length, records.length));
     renderAttendanceSummary(records);
-    emptyTable(table, 10);
+    emptyTable(table, 11);
 }
 
 function attendanceRecordLimit() {
@@ -718,6 +995,8 @@ async function loadLeaves() {
                     <td>${leave.employee_id}</td>
                     <td>${leave.employee_name || "-"}</td>
                     <td>${formatLabel(leave.employee_role)}</td>
+                    <td>${leave.total_days}</td>
+                    <td>${leave.leave_balance?.remaining_days ?? "-"}</td>
                     <td>${leave.start_date}</td>
                     <td>${leave.end_date}</td>
                     <td>${leave.reason}</td>
@@ -727,7 +1006,7 @@ async function loadLeaves() {
             `;
         });
 
-        emptyTable(table, 9);
+        emptyTable(table, 11);
     } catch (error) {
         alert(error.message);
     }
@@ -808,6 +1087,148 @@ async function updateShift() {
     }
 }
 
+async function updateEmploymentType() {
+    const id = getValue("employeeId");
+    const employment_type = getValue("employmentType");
+    const intern_months = Number(getValue("internMonths") || 0);
+
+    if (!id || !employment_type) {
+        alert("Enter employee ID and employment type");
+        return;
+    }
+
+    if (employment_type === "intern" && (!intern_months || intern_months < 1)) {
+        alert("Enter intern duration in months");
+        return;
+    }
+
+    try {
+        const data = await apiRequest(`/admin/employee/${id}/employment-type`, {
+            method: "PUT",
+            body: JSON.stringify({
+                employment_type,
+                intern_months: employment_type === "intern" ? intern_months : null
+            })
+        });
+
+        alert(data.message);
+        refreshAdminDashboard();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function uploadEmployeeProfilePhoto() {
+    const id = getValue("employeeId");
+    const input = document.getElementById("employeeProfilePhotoInput");
+
+    if (!id) {
+        alert("Select or enter an employee ID first");
+        return;
+    }
+
+    if (!input || !input.files.length) {
+        alert("Choose a profile photo first");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("photo", input.files[0]);
+
+    try {
+        const data = await apiRequest(`/admin/employee/${id}/profile-photo`, {
+            method: "POST",
+            body: formData
+        });
+
+        alert(data.message);
+        input.value = "";
+        refreshAdminDashboard();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function downloadAttendanceExcel(period = "monthly") {
+    const now = new Date();
+    const selectedDate = getValue("analyticsDate") || getValue("attendanceDate") || formatInputDate(now);
+    const selectedDateObject = parseRecordDate(selectedDate) || now;
+    const selectedWeek = getValue("analyticsWeek") || (getValue("attendanceDate") ? getWeekInputValue(selectedDateObject) : getValue("attendanceWeek")) || getWeekInputValue(selectedDateObject);
+    const attendanceMonth = getValue("attendanceMonth");
+    const monthValue = getValue("analyticsMonth") || (getValue("attendanceDate") ? selectedDateObject.getMonth() + 1 : attendanceMonth.split("-")[1]) || now.getMonth() + 1;
+    const yearValue = getValue("analyticsYear") || (getValue("attendanceDate") ? selectedDateObject.getFullYear() : attendanceMonth.split("-")[0]) || getValue("attendanceYear") || now.getFullYear();
+    const params = new URLSearchParams({ period });
+
+    if (period === "daily") {
+        params.set("selected_date", selectedDate);
+    } else if (period === "weekly") {
+        params.set("week", selectedWeek);
+    } else {
+        params.set("month", monthValue);
+        params.set("year", yearValue);
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/admin/attendance-report/excel?${params.toString()}`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.detail || "Could not download report");
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = attendanceReportFilename(period, selectedDate, selectedWeek, monthValue, yearValue);
+        link.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function attendanceReportFilename(period, selectedDate, selectedWeek, month, year) {
+    if (period === "daily") {
+        return `daily-attendance-report-${selectedDate}.xls`;
+    }
+
+    if (period === "weekly") {
+        return `weekly-attendance-report-${selectedWeek}.xls`;
+    }
+
+    return `monthly-attendance-report-${year}-${pad2(month)}.xls`;
+}
+
+async function downloadInternAttendanceExcel() {
+    try {
+        const response = await fetch(`${API_BASE}/admin/intern-attendance-report/excel`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.detail || "Could not download intern report");
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "intern-attendance-report.xls";
+        link.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 async function deleteEmployee(id) {
     if (!confirm("Delete employee and all related attendance/leave records?")) {
         return;
@@ -831,15 +1252,13 @@ function fillEmployee(id) {
     setValue("employeeId", employee.id);
     setValue("role", employee.role === "super_admin" ? "" : employee.role);
     setValue("shift", employee.role === "super_admin" ? "" : employee.shift);
+    setValue("employmentType", employee.employment_type || "full_time");
+    setValue("internMonths", employee.intern_months || "");
 }
 
 function canDeleteEmployee(employee) {
     if (!currentAdmin || employee.role === "super_admin" || employee.id === currentAdmin.employee_id) {
         return false;
-    }
-
-    if (employee.role === "admin") {
-        return currentAdmin.role === "super_admin";
     }
 
     return true;
@@ -1092,10 +1511,12 @@ function matchesAttendanceEmployee(record, search) {
 
     return [
         record.employee_id,
+        record.employee_code,
         record.employee_name,
         record.email,
         record.role,
         record.shift,
+        record.employment_type,
         record.joined_at
     ]
         .join(" ")
@@ -1137,7 +1558,7 @@ function getCurrentSummaryShift() {
 function matchesSearch(emp, search) {
     if (!search) return true;
 
-    return [emp.name, emp.email, emp.role, emp.shift, emp.joined_at]
+    return [emp.employee_code, emp.name, emp.email, emp.role, emp.shift, emp.employment_type, emp.joined_at]
         .join(" ")
         .toLowerCase()
         .includes(search);
@@ -1296,21 +1717,72 @@ function renderAttendanceTrendChart(daily) {
         attendanceTrendChart.destroy();
     }
 
+    const options = dailyChartOptions({ stacked: true });
+    options.plugins.tooltip = {
+        callbacks: {
+            label: context => {
+                const item = daily[context.dataIndex] || {};
+                if (!item.isWorkingDay && context.dataset.label === "Not Working Day") {
+                    return "Not a working day";
+                }
+
+                if (!item.isWorkingDay && !context.parsed.y) {
+                    return "";
+                }
+
+                return `${context.dataset.label}: ${context.parsed.y}`;
+            },
+            afterBody: items => {
+                const index = items[0]?.dataIndex ?? 0;
+                const item = daily[index] || {};
+                if (!item.isWorkingDay) {
+                    return "Sunday";
+                }
+
+                return [
+                    `Scheduled: ${item.scheduled || 0}`,
+                    `Total: ${(item.present || 0) + (item.leave || 0) + (item.absent || 0)}`
+                ];
+            }
+        }
+    };
+
     attendanceTrendChart = new Chart(ctx, {
-        type: "line",
+        type: "bar",
         data: {
             labels: daily.map(item => item.label),
-            datasets: [{
-                label: "Present",
-                data: daily.map(item => item.present),
-                borderColor: "#0e7c73",
-                backgroundColor: "rgba(14, 124, 115, 0.14)",
-                fill: true,
-                tension: 0.35,
-                pointRadius: 3
-            }]
+            datasets: [
+                {
+                    label: "Present",
+                    data: daily.map(item => item.present),
+                    backgroundColor: "#0e7c73",
+                    borderRadius: 5,
+                    maxBarThickness: 24
+                },
+                {
+                    label: "On Leave",
+                    data: daily.map(item => item.leave || 0),
+                    backgroundColor: "#c47a00",
+                    borderRadius: 5,
+                    maxBarThickness: 24
+                },
+                {
+                    label: "Absent",
+                    data: daily.map(item => item.absent || 0),
+                    backgroundColor: "#c02648",
+                    borderRadius: 5,
+                    maxBarThickness: 24
+                },
+                {
+                    label: "Not Working Day",
+                    data: daily.map(item => item.isWorkingDay ? 0 : 1),
+                    backgroundColor: "#94a3b8",
+                    borderRadius: 5,
+                    maxBarThickness: 24
+                }
+            ]
         },
-        options: analyticsAxisOptions()
+        options
     });
 }
 
@@ -1321,6 +1793,13 @@ function renderHoursTrendChart(daily) {
     if (hoursTrendChart) {
         hoursTrendChart.destroy();
     }
+
+    const options = dailyChartOptions();
+    options.plugins.tooltip = {
+        callbacks: {
+            label: context => `${context.dataset.label}: ${context.parsed.y.toFixed(2)} hours`
+        }
+    };
 
     hoursTrendChart = new Chart(ctx, {
         type: "bar",
@@ -1334,7 +1813,7 @@ function renderHoursTrendChart(daily) {
                 maxBarThickness: 28
             }]
         },
-        options: analyticsAxisOptions()
+        options
     });
 }
 
@@ -1345,6 +1824,33 @@ function renderLateEarlyChart(model) {
     if (lateEarlyChart) {
         lateEarlyChart.destroy();
     }
+
+    const options = dailyChartOptions();
+    options.plugins.tooltip = {
+        callbacks: {
+            label: context => {
+                const item = model.daily[context.dataIndex] || {};
+                if (!item.isWorkingDay && context.dataset.label === "Not Working Day") {
+                    return "Not a working day";
+                }
+
+                if (!item.isWorkingDay && !context.parsed.y) {
+                    return "";
+                }
+
+                return `${context.dataset.label}: ${context.parsed.y}`;
+            },
+            afterBody: items => {
+                const index = items[0]?.dataIndex ?? 0;
+                const item = model.daily[index] || {};
+                if (!item.isWorkingDay) {
+                    return "Sunday";
+                }
+
+                return `Attendance records: ${(item.late || 0) + (item.early || 0) || item.present || 0}`;
+            }
+        }
+    };
 
     lateEarlyChart = new Chart(ctx, {
         type: "bar",
@@ -1364,10 +1870,17 @@ function renderLateEarlyChart(model) {
                     backgroundColor: "#c02648",
                     borderRadius: 6,
                     maxBarThickness: 24
+                },
+                {
+                    label: "Not Working Day",
+                    data: model.daily.map(item => item.isWorkingDay ? 0 : 1),
+                    backgroundColor: "#94a3b8",
+                    borderRadius: 6,
+                    maxBarThickness: 24
                 }
             ]
         },
-        options: analyticsAxisOptions()
+        options
     });
 }
 
@@ -1422,8 +1935,12 @@ function renderEmployeeAnalytics(model) {
         : model.records.filter(record => String(record.employee_id) === selectedEmployee);
 
     const totalHours = selectedRecords.reduce((sum, record) => sum + durationToHours(record.total_hours), 0);
-    const late = selectedRecords.filter(record => record.is_late).length;
-    const early = selectedRecords.filter(record => record.left_early && record.logout_time).length;
+    const workingRecords = selectedRecords.filter(record => {
+        const recordDate = parseRecordDate(record.date);
+        return recordDate && !isSunday(recordDate);
+    });
+    const late = workingRecords.filter(record => record.is_late).length;
+    const early = workingRecords.filter(record => record.left_early && record.logout_time).length;
     const present = selectedReport.reduce((sum, item) => sum + item.present_days, 0);
     const leave = selectedReport.reduce((sum, item) => sum + item.approved_leave_days, 0);
     const extra = selectedReport.reduce((sum, item) => sum + (item.extra_work_days || 0), 0);
@@ -1460,19 +1977,67 @@ function renderEmployeeHoursChart(daily, records) {
         employeeHoursChart.destroy();
     }
 
+    const values = daily.map(item => Number((hoursByDate[item.id] || 0).toFixed(2)));
+    const workedDays = daily.filter((item, index) => item.isWorkingDay !== false && values[index] > 0);
+    const averageHours = workedDays.length
+        ? workedDays.reduce((sum, item) => sum + (hoursByDate[item.id] || 0), 0) / workedDays.length
+        : 0;
+    const options = dailyChartOptions();
+    options.plugins.tooltip = {
+        callbacks: {
+            label: context => {
+                if (context.dataset.label === "Average Hours") {
+                    return averageHours ? `Average: ${averageHours.toFixed(2)} hours` : "Average: 0 hours";
+                }
+
+                const item = daily[context.dataIndex] || {};
+                const hours = context.parsed.y || 0;
+                if (item.isWorkingDay === false) {
+                    return hours ? `Extra work: ${hours.toFixed(2)} hours` : "Not a working day";
+                }
+
+                return hours ? `Hours: ${hours.toFixed(2)}` : "No recorded hours";
+            },
+            afterBody: items => {
+                const index = items[0]?.dataIndex ?? 0;
+                const item = daily[index] || {};
+                return item.isWorkingDay === false ? "Sunday" : "";
+            }
+        }
+    };
+    options.scales.y.suggestedMax = Math.max(9, Math.ceil(Math.max(...values, averageHours, 0)));
+
     employeeHoursChart = new Chart(ctx, {
         type: "bar",
         data: {
             labels: daily.map(item => item.label),
-            datasets: [{
-                label: "Hours",
-                data: daily.map(item => Number((hoursByDate[item.id] || 0).toFixed(2))),
-                backgroundColor: "#0e7c73",
-                borderRadius: 6,
-                maxBarThickness: 28
-            }]
+            datasets: [
+                {
+                    label: "Hours",
+                    data: values,
+                    backgroundColor: daily.map((item, index) => {
+                        if (item.isWorkingDay === false) return values[index] > 0 ? "#64748b" : "#cbd5e1";
+                        if (values[index] >= 8) return "#0e7c73";
+                        if (values[index] > 0) return "#c47a00";
+                        return "#e2e8f0";
+                    }),
+                    borderRadius: 6,
+                    maxBarThickness: 28
+                },
+                {
+                    label: "Average Hours",
+                    type: "line",
+                    data: daily.map(item => item.isWorkingDay === false || !averageHours ? null : Number(averageHours.toFixed(2))),
+                    borderColor: "#3346d3",
+                    backgroundColor: "rgba(51, 70, 211, 0.12)",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.25,
+                    spanGaps: false
+                }
+            ]
         },
-        options: analyticsAxisOptions()
+        options
     });
 }
 
@@ -1493,7 +2058,7 @@ function renderEmployeeAnalyticsTable(records) {
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
-                    <td>${yesNo(record.is_late)}</td>
+                    <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
                     <td>${active ? "-" : yesNo(record.left_early)}</td>
                 </tr>
             `;
@@ -1619,6 +2184,43 @@ function analyticsAxisOptions() {
     };
 }
 
+function stackedAnalyticsOptions() {
+    const options = analyticsAxisOptions();
+    options.scales.x.stacked = true;
+    options.scales.y.stacked = true;
+    return options;
+}
+
+function dailyChartOptions({ stacked = false } = {}) {
+    const options = analyticsAxisOptions();
+    options.interaction = {
+        mode: "index",
+        intersect: false
+    };
+    options.scales.x.ticks = {
+        autoSkip: false,
+        maxRotation: 55,
+        minRotation: 55,
+        font: {
+            size: 10
+        }
+    };
+    options.scales.x.grid = {
+        display: true,
+        color: "rgba(148, 163, 184, 0.14)"
+    };
+    options.scales.y.grid = {
+        color: "rgba(148, 163, 184, 0.18)"
+    };
+
+    if (stacked) {
+        options.scales.x.stacked = true;
+        options.scales.y.stacked = true;
+    }
+
+    return options;
+}
+
 function refreshAdminDashboard() {
     loadAdminProfile();
     loadDashboard();
@@ -1628,6 +2230,8 @@ function refreshAdminDashboard() {
     loadAdminAttendanceHistory();
     loadAdminMonthlySummary();
     loadLeaves();
+    loadNotifications();
+    loadEmployeeGrowth();
 }
 
 function formatStatus(status) {
@@ -1640,6 +2244,7 @@ function statusClass(status) {
     if (status === "Present" || status === "Working (Punched In)") return "success";
     if (status === "On Leave") return "warning";
     if (status === "Pending Assignment" || status === "No Attendance" || status === "Shift Not Started" || status === "Extra Work") return "neutral";
+    if (status === "Joined Today - Work Starts Tomorrow") return "warning";
     return "danger";
 }
 

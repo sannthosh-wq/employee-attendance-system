@@ -28,11 +28,24 @@
 
     <div class="card profile-card">
         <h3>Profile</h3>
+        <img class="profile-photo" id="profilePhoto" alt="Profile photo">
         <div class="profile-name" id="name">-</div>
         <p id="email">-</p>
         <p id="employeeId">Employee ID: -</p>
         <p id="role">Role: -</p>
         <p id="shift">Shift: -</p>
+        <p id="employmentType">Employment Type: -</p>
+        <label>Profile Photo</label>
+        <input type="file" id="profilePhotoInput" accept="image/*">
+        <button onclick="uploadProfilePhoto()">Upload Photo</button>
+    </div>
+
+    <div class="card status-list">
+        <div class="section-heading">
+            <h3>Notifications</h3>
+            <span class="badge warning" id="notificationCount">0 Unread</span>
+        </div>
+        <ul id="notificationList"></ul>
     </div>
 </div>
 

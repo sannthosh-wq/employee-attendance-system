@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payroll Management</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="admin-payroll.html" class="active">Payroll Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="dashboard">
+        <div class="page-header">
+            <div>
+                <h1>Payroll Management</h1>
+                <p>Assign salary structures, process monthly payroll, and download payslips.</p>
+            </div>
+            <span class="badge success">Admin</span>
+        </div>
+
+        <div class="dashboard-grid two-columns">
+            <div class="card">
+                <div class="section-heading">
+                    <h3>Assign Salary</h3>
+                    <span class="badge">Revision Safe</span>
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label>Employee</label>
+                        <select id="salaryEmployee" onchange="loadSalaryHistory()"></select>
+                    </div>
+                    <div>
+                        <label>Effective From</label>
+                        <input type="date" id="salaryEffectiveFrom">
+                    </div>
+                    <div>
+                        <label>Basic Salary</label>
+                        <input type="number" id="basicSalary" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label>HRA</label>
+                        <input type="number" id="hra" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label>Travel Allowance</label>
+                        <input type="number" id="travelAllowance" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label>Medical Allowance</label>
+                        <input type="number" id="medicalAllowance" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                <button onclick="assignSalary()">Assign Salary</button>
+            </div>
+
+            <div class="card">
+                <div class="section-heading">
+                    <h3>Process Payroll</h3>
+                    <span class="badge warning">Monthly</span>
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label>Month</label>
+                        <input type="number" id="payrollMonth" min="1" max="12">
+                    </div>
+                    <div>
+                        <label>Year</label>
+                        <input type="number" id="payrollYear" min="2000" max="2100">
+                    </div>
+                    <div>
+                        <label>Tax %</label>
+                        <input type="number" id="taxPercentage" min="0" max="100" step="0.01" value="0">
+                    </div>
+                    <div>
+                        <label>Employee</label>
+                        <select id="payrollEmployee">
+                            <option value="">All Employees</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="button-row">
+                    <button onclick="processPayroll()">Process Payroll</button>
+                    <button class="secondary" onclick="loadPayrollMonth()">Load Payroll</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>Salary Revision History</h3>
+                <span class="badge" id="salaryHistoryCount">0 Records</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Effective From</th>
+                            <th>Basic</th>
+                            <th>HRA</th>
+                            <th>Travel</th>
+                            <th>Medical</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salaryHistoryTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>Monthly Payroll</h3>
+                <span class="badge success" id="payrollCount">0 Records</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee ID</th>
+                            <th>Month</th>
+                            <th>Total Days</th>
+                            <th>Present</th>
+                            <th>Paid Leave</th>
+                            <th>Absent</th>
+                            <th>Gross</th>
+                            <th>Deductions</th>
+                            <th>Net Salary</th>
+                            <th>Processed</th>
+                            <th>Payslip</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payrollTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/payroll.js"></script>
+
+</body>
+</html>

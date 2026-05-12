@@ -17,6 +17,7 @@
     <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="admin-payroll.html">Payroll Management</a>
     <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
     <a href="search-employee.html">Search Employee</a>
@@ -34,11 +35,24 @@
 
     <div class="card profile-card">
         <h3>Admin Profile</h3>
+        <img class="profile-photo" id="profilePhoto" alt="Profile photo">
         <div class="profile-name" id="adminName">-</div>
         <p id="adminEmail">-</p>
         <p id="adminId">Admin ID: -</p>
         <p id="adminRole">Role: -</p>
         <p id="adminShift">Shift: -</p>
+        <p id="adminEmploymentType">Employment Type: -</p>
+        <label>Profile Photo</label>
+        <input type="file" id="profilePhotoInput" accept="image/*">
+        <button onclick="uploadProfilePhoto()">Upload Photo</button>
+    </div>
+
+    <div class="card status-list">
+        <div class="section-heading">
+            <h3>Notifications</h3>
+            <span class="badge warning" id="notificationCount">0 Unread</span>
+        </div>
+        <ul id="notificationList"></ul>
     </div>
 
     <div class="card" id="adminMonthlySummarySection">

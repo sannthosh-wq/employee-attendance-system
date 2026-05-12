@@ -8,12 +8,13 @@
 
 <div class="sidebar">
     <h2>EMS</h2>
-    <a href="dashboard.html" class="active">Employee Dashboard</a>
+    <a href="dashboard.html" class="active employee-dashboard-label">Employee Dashboard</a>
     <a href="employee-profile.html">Profile</a>
     <a href="punch.html">Punch In / Punch Out</a>
-    <a href="attendance.html">Employee Attendance History</a>
-    <a href="leave.html">Employee Apply Leave</a>
+    <a href="attendance.html" class="employee-attendance-label">Employee Attendance History</a>
+    <a href="leave.html" class="employee-leave-label">Employee Apply Leave</a>
     <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="employee-payroll.html">My Payroll</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
@@ -21,8 +22,8 @@
     <div class="dashboard">
         <div class="page-header">
             <div>
-                <h1>Employee Dashboard</h1>
-                <p>Track your profile, attendance, leave, and monthly summary.</p>
+                <h1 id="dashboardTitle">Employee Dashboard</h1>
+                <p id="dashboardSubtitle">Track your profile, attendance, leave, and monthly summary.</p>
             </div>
             <span class="badge" id="todayStatus">Loading</span>
         </div>
@@ -30,11 +31,16 @@
         <div class="dashboard-grid two-columns">
             <div class="card profile-card" id="profile">
                 <h3>Profile</h3>
+                <img class="profile-photo" id="profilePhoto" alt="Profile photo">
                 <div class="profile-name" id="name">-</div>
                 <p id="email">-</p>
                 <p id="employeeId">Employee ID: -</p>
                 <p id="role">Role: -</p>
                 <p id="shift">Shift: -</p>
+                <p id="employmentType">Employment Type: -</p>
+                <label>Profile Photo</label>
+                <input type="file" id="profilePhotoInput" accept="image/*">
+                <button onclick="uploadProfilePhoto()">Upload Photo</button>
             </div>
 
             <div class="card action-card" id="punch">
@@ -67,9 +73,30 @@
         </div>
 
         <div class="dashboard-grid two-columns">
+            <div class="card">
+                <div class="section-heading">
+                    <h3>Monthly Leave Balance</h3>
+                    <span class="badge success"><span id="leaveBalance">0</span> Left</span>
+                </div>
+                <div class="shift-metrics">
+                    <div><span>Monthly Allowance</span><strong id="leaveAllowance">0</strong></div>
+                    <div><span>Used</span><strong id="leaveUsed">0</strong></div>
+                </div>
+            </div>
+
+            <div class="card status-list">
+                <div class="section-heading">
+                    <h3>Notifications</h3>
+                    <span class="badge warning" id="notificationCount">0 Unread</span>
+                </div>
+                <ul id="notificationList"></ul>
+            </div>
+        </div>
+
+        <div class="dashboard-grid two-columns">
             <div class="card" id="apply-leave">
                 <div class="section-heading">
-                    <h3>Apply Leave</h3>
+                <h3 id="applyLeaveTitle">Apply Leave</h3>
                     <a href="leave.html">View all leaves</a>
                 </div>
                 <label>Start Date</label>
@@ -109,7 +136,7 @@
 
         <div class="card table-card" id="attendance-history">
             <div class="section-heading">
-                <h3>Employee Attendance History</h3>
+                <h3 id="attendanceHistoryTitle">Employee Attendance History</h3>
                 <a href="attendance.html">Open history</a>
             </div>
             <div class="table-wrap">
