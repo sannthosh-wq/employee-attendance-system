@@ -1,5 +1,6 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
+const DEFAULT_PROFILE_PHOTO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%23d8f6f2'/%3E%3Cstop offset='1' stop-color='%23e8edff'/%3E%3C/linearGradient%3E%3ClinearGradient id='body' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%230b7a75'/%3E%3Cstop offset='1' stop-color='%233157d5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='128' fill='url(%23bg)'/%3E%3Ccircle cx='256' cy='190' r='92' fill='%23ffffff' opacity='.95'/%3E%3Ccircle cx='256' cy='176' r='74' fill='url(%23body)'/%3E%3Cpath d='M92 452c18-104 85-154 164-154s146 50 164 154' fill='url(%23body)'/%3E%3C/svg%3E";
 
 if (!token) {
     window.location.href = "login.html";
@@ -214,11 +215,13 @@ function setProfilePhoto(path) {
     const image = document.getElementById("profilePhoto");
     if (!image) return;
 
+    image.decoding = "async";
+    image.loading = "eager";
     image.src = profilePhotoSrc(path);
 }
 
 function profilePhotoSrc(path) {
-    return path ? `${API_BASE}${path}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23d8f6f2'/%3E%3Ccircle cx='60' cy='44' r='24' fill='%230b7a75'/%3E%3Cpath d='M20 110c6-28 26-42 40-42s34 14 40 42' fill='%233157d5'/%3E%3C/svg%3E";
+    return path ? `${API_BASE}${path}` : DEFAULT_PROFILE_PHOTO;
 }
 
 async function loadNotifications() {
@@ -388,7 +391,22 @@ async function loadEmployeeGrowth() {
         if (list) {
             list.innerHTML = "";
             data.monthly.slice(-6).reverse().forEach(item => {
-                list.innerHTML += `<li>${item.month}<span>${item.count} joined</span></li>`;
+                const employeeRows = (item.employees || []).map(employee => `
+                    <li>
+                        <strong>${employee.name}</strong>
+                        <span>${formatLabel(employee.employment_type)} - ${formatLabel(employee.role)} - Joined ${formatDate(employee.joined_at)}</span>
+                    </li>
+                `).join("");
+
+                list.innerHTML += `
+                    <li class="growth-month">
+                        <div class="growth-month-row">
+                            <strong>${formatMonthLabel(item.month)}</strong>
+                            <span>${item.count} joined</span>
+                        </div>
+                        <ul class="growth-employee-list">${employeeRows}</ul>
+                    </li>
+                `;
             });
             emptyList(list);
         }
@@ -517,11 +535,12 @@ async function loadAdminAttendanceHistory() {
         table.innerHTML = "";
 
         data.forEach(record => {
-            const active = !record.logout_time;
+            const active = Boolean(record.login_time && !record.logout_time);
 
             table.innerHTML += `
                 <tr>
                     <td>${record.date}</td>
+                    <td>${attendanceStatusBadge(record)}</td>
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
@@ -532,7 +551,7 @@ async function loadAdminAttendanceHistory() {
         });
 
         setText("adminAttendanceCount", `${data.length} Records`);
-        emptyTable(table, 6);
+        emptyTable(table, 7);
     } catch (error) {
         alert(error.message);
     }
@@ -559,10 +578,11 @@ async function loadAttendanceAnalytics() {
     if (!month || !year || !selectedDate) return;
 
     try {
+        const attendanceParams = new URLSearchParams({ month, year });
         const [dailySummary, employeeData, attendanceRecords, monthlyReport, warnings, trendData] = await Promise.all([
             loadDailyAnalyticsSummary(selectedDate),
             apiRequest("/admin/employees"),
-            apiRequest("/admin/attendance"),
+            apiRequest(`/admin/attendance?${attendanceParams.toString()}`),
             apiRequest(`/admin/monthly-attendance-report?month=${month}&year=${year}`),
             loadLowAttendanceWarnings(month, year),
             loadDailyTrend(month, year)
@@ -897,18 +917,38 @@ function renderTodayLists(items) {
     absentList.innerHTML = "";
     leaveList.innerHTML = "";
 
+    const counts = {
+        present: 0,
+        absent: 0,
+        leave: 0,
+    };
+
     items.forEach(item => {
-        const line = `<li>${item.name} <span>${formatLabel(item.role)} - ${formatLabel(item.shift)} - Joined ${formatDate(item.joined_at)}</span></li>`;
+        const line = `
+            <li class="today-status-row">
+                <div class="today-status-person">
+                    <strong>${item.name}</strong>
+                    <span>${formatLabel(item.role)} - ${formatLabel(item.shift)}</span>
+                </div>
+                <span class="today-status-date">Joined ${formatDate(item.joined_at)}</span>
+            </li>
+        `;
 
         if (item.status === "Present" || item.status === "Working (Punched In)") {
             presentList.innerHTML += line;
+            counts.present += 1;
         } else if (item.status === "On Leave") {
             leaveList.innerHTML += line;
+            counts.leave += 1;
         } else if (item.status === "Absent") {
             absentList.innerHTML += line;
+            counts.absent += 1;
         }
     });
 
+    setText("presentListCount", counts.present);
+    setText("absentListCount", counts.absent);
+    setText("leaveListCount", counts.leave);
     emptyList(presentList);
     emptyList(absentList);
     emptyList(leaveList);
@@ -934,7 +974,7 @@ function renderAllAttendance() {
     table.innerHTML = "";
 
     visibleRecords.forEach(record => {
-        const active = !record.logout_time;
+        const active = Boolean(record.login_time && !record.logout_time);
 
         table.innerHTML += `
             <tr>
@@ -944,6 +984,7 @@ function renderAllAttendance() {
                 <td>${formatLabel(record.employment_type)}</td>
                 <td>${formatDate(record.joined_at)}</td>
                 <td>${record.date}</td>
+                <td>${attendanceStatusBadge(record)}</td>
                 <td>${formatDateTime(record.login_time)}</td>
                 <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                 <td>${formatDuration(record.total_hours)}</td>
@@ -955,7 +996,7 @@ function renderAllAttendance() {
 
     setText("attendanceRecordCount", attendanceRecordCountText(visibleRecords.length, records.length));
     renderAttendanceSummary(records);
-    emptyTable(table, 11);
+    emptyTable(table, 12);
 }
 
 function attendanceRecordLimit() {
@@ -2051,10 +2092,11 @@ function renderEmployeeAnalyticsTable(records) {
         .slice()
         .sort((a, b) => parseRecordDate(b.date) - parseRecordDate(a.date))
         .forEach(record => {
-            const active = !record.logout_time;
+            const active = Boolean(record.login_time && !record.logout_time);
             table.innerHTML += `
                 <tr>
                     <td>${record.date}</td>
+                    <td>${attendanceStatusBadge(record)}</td>
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
@@ -2065,7 +2107,7 @@ function renderEmployeeAnalyticsTable(records) {
         });
 
     setText("employeeRecordCount", `${records.length} Records`);
-    emptyTable(table, 6);
+    emptyTable(table, 7);
 }
 
 function renderBestAttendance(report) {
@@ -2145,6 +2187,7 @@ function renderAnalyticsDetailTable(report, employeeStats) {
                 <td>${formatDate(employee?.joined_at || item.joined_at)}</td>
                 <td>${formatDayCount(item.present_days)}</td>
                 <td>${item.approved_leave_days}</td>
+                <td>${formatDayCount(item.absent_days)}</td>
                 <td>${formatExtraWork(item)}</td>
                 <td>${item.effective_working_days}</td>
                 <td>${badge(`${item.attendance_percentage}%`, attendanceScoreClass(item.attendance_percentage))}</td>
@@ -2156,7 +2199,7 @@ function renderAnalyticsDetailTable(report, employeeStats) {
     });
 
     setText("analyticsDetailCount", `${rows.length} Rows`);
-    emptyTable(table, 12);
+    emptyTable(table, 13);
 }
 
 function analyticsAxisOptions() {
@@ -2240,10 +2283,15 @@ function formatStatus(status) {
     return badge("Pending", "warning");
 }
 
+function attendanceStatusBadge(record) {
+    const status = record.status || (record.login_time ? "Present" : "-");
+    return status === "-" ? "-" : badge(status, statusClass(status));
+}
+
 function statusClass(status) {
     if (status === "Present" || status === "Working (Punched In)") return "success";
-    if (status === "On Leave") return "warning";
-    if (status === "Pending Assignment" || status === "No Attendance" || status === "Shift Not Started" || status === "Extra Work") return "neutral";
+    if (status === "On Leave" || status === "Leave") return "warning";
+    if (status === "Pending Assignment" || status === "No Attendance" || status === "Shift Not Started" || status === "Extra Work" || status === "Holiday") return "neutral";
     if (status === "Joined Today - Work Starts Tomorrow") return "warning";
     return "danger";
 }
@@ -2268,6 +2316,18 @@ function formatDateTime(value) {
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleDateString() : "-";
+}
+
+function formatMonthLabel(value) {
+    if (!value) return "-";
+    const [year, month] = String(value).split("-").map(Number);
+
+    if (!year || !month) return value;
+
+    return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric"
+    });
 }
 
 function parseRecordDate(value) {

@@ -65,6 +65,10 @@
                         <label>Medical Allowance</label>
                         <input type="number" id="medicalAllowance" min="0" step="0.01" placeholder="0.00">
                     </div>
+                    <div>
+                        <label>Special Allowance</label>
+                        <input type="number" id="specialAllowance" min="0" step="0.01" placeholder="0.00">
+                    </div>
                 </div>
                 <button onclick="assignSalary()">Assign Salary</button>
             </div>
@@ -97,6 +101,7 @@
                 <div class="button-row">
                     <button onclick="processPayroll()">Process Payroll</button>
                     <button class="secondary" onclick="loadPayrollMonth()">Load Payroll</button>
+                    <button class="secondary" onclick="loadAllPayrollRecords()">Load All Records</button>
                 </div>
             </div>
         </div>
@@ -115,10 +120,38 @@
                             <th>HRA</th>
                             <th>Travel</th>
                             <th>Medical</th>
+                            <th>Special</th>
+                            <th>Total</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="salaryHistoryTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>All Assigned Salaries</h3>
+                <span class="badge success" id="allSalaryCount">0 Records</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Role</th>
+                            <th>Effective From</th>
+                            <th>Basic</th>
+                            <th>HRA</th>
+                            <th>Travel</th>
+                            <th>Medical</th>
+                            <th>Special</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allSalaryTable"></tbody>
                 </table>
             </div>
         </div>
@@ -146,6 +179,33 @@
                         </tr>
                     </thead>
                     <tbody id="payrollTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <h3>Processed Payroll History</h3>
+                <span class="badge success" id="payrollHistoryCount">0 Records</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Role</th>
+                            <th>Month</th>
+                            <th>Total Days</th>
+                            <th>Present</th>
+                            <th>Paid Leave</th>
+                            <th>Absent</th>
+                            <th>Gross</th>
+                            <th>Deductions</th>
+                            <th>Net Salary</th>
+                            <th>Processed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payrollHistoryTable"></tbody>
                 </table>
             </div>
         </div>

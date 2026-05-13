@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Date, Interval, Boolean, Text, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Date, Interval, Boolean, Text, Numeric, UniqueConstraint, Float, Index
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -14,6 +14,7 @@ class Employee(Base):
     password = Column(String)
     role = Column(String, nullable=True)
     shift = Column(String, nullable=True)
+    department = Column(String, nullable=True)
     employment_type = Column(String, default="full_time")
     intern_months = Column(Integer, nullable=True)
     profile_photo = Column(String, nullable=True)
@@ -25,6 +26,11 @@ class Employee(Base):
 
 class Attendance(Base):
     __tablename__ = "attendance"
+    __table_args__ = (
+        UniqueConstraint("employee_id", "date", name="uq_attendance_employee_date"),
+        Index("ix_attendance_date_status", "date", "status"),
+        Index("ix_attendance_employee_date", "employee_id", "date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id"))
@@ -32,8 +38,12 @@ class Attendance(Base):
     login_time = Column(TIMESTAMP)
     logout_time = Column(TIMESTAMP)
     total_hours = Column(Interval)
+    status = Column(String, default="Present")
     is_late = Column(Boolean, default=False)
     left_early = Column(Boolean, default=False)
+    late_minutes = Column(Integer, default=0)
+    early_minutes = Column(Integer, default=0)
+    working_hours = Column(Float, default=0.0)
     employee = relationship("Employee", back_populates="attendance_records", foreign_keys=[employee_id])
 
 class AttendancePunch(Base):
@@ -53,8 +63,10 @@ class Leave(Base):
 
     start_date = Column(Date)
     end_date = Column(Date)
+    leave_date = Column(Date)
 
     reason = Column(String)
+    leave_type = Column(String, nullable=True)
     status = Column(String, default="pending")
 
     cancelled_at = Column(TIMESTAMP, nullable=True)
@@ -105,6 +117,7 @@ class SalaryStructure(Base):
     travel_allowance = Column(Numeric(12, 2), nullable=False, default=0)
     medical_allowance = Column(Numeric(12, 2), nullable=False, default=0)
     special_allowance = Column(Numeric(12, 2), nullable=False, default=0)
+    total_salary = Column(Numeric(12, 2), nullable=False, default=0)
     effective_from = Column(Date, nullable=False)
     created_by = Column(Integer, ForeignKey("employees.id"), nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)

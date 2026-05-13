@@ -3,7 +3,6 @@ from datetime import date, datetime, time, timedelta
 from math import ceil
 
 from fastapi import HTTPException
-from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
 from models import Attendance, AttendancePunch, Employee, Leave
@@ -32,9 +31,14 @@ VALID_ROLES = {
 VALID_EMPLOYMENT_TYPES = {"full_time", "intern", "contract"}
 MIN_ATTENDANCE_PERCENTAGE = 70
 REPORT_START_YEAR = 2026
-REPORT_START_MONTH = 5
-NEXT_DAY_WORK_START_FROM = date(2026, 5, 12)
+REPORT_START_MONTH = 1
 JOINED_TODAY_STATUS = "Joined Today - Work Starts Tomorrow"
+
+
+def normalized_shift(shift: str | None):
+    if shift == "day":
+        return "morning"
+    return shift
 
 
 def night_shift_start_date(now: datetime):
@@ -44,6 +48,8 @@ def night_shift_start_date(now: datetime):
 
 
 def get_shift_window_for_date(shift_date: date, shift: str):
+    shift = normalized_shift(shift)
+
     if shift == "morning":
         shift_start = datetime.combine(shift_date, MORNING_SHIFT_START)
         shift_end = datetime.combine(shift_date, MORNING_SHIFT_END)
@@ -58,6 +64,8 @@ def get_shift_window_for_date(shift_date: date, shift: str):
 
 
 def get_shift_window(now: datetime, shift: str):
+    shift = normalized_shift(shift)
+
     if shift == "morning":
         shift_date = now.date()
         shift_start, grace_time, shift_end = get_shift_window_for_date(shift_date, shift)
@@ -84,18 +92,41 @@ def employee_join_date(employee):
     return employee.joined_at or date(REPORT_START_YEAR, REPORT_START_MONTH, 1)
 
 
-def uses_next_day_work_start(employee):
-    return (
-        getattr(employee, "role", None) not in ["admin", "super_admin"]
-        and employee_join_date(employee) >= NEXT_DAY_WORK_START_FROM
-    )
-
-
 def employee_work_start_date(employee):
-    join_date = employee_join_date(employee)
-    if uses_next_day_work_start(employee):
-        return join_date + timedelta(days=1)
-    return join_date
+    if getattr(employee, "role", None) in ["admin", "super_admin"]:
+        return employee_join_date(employee)
+    return employee_join_date(employee) + timedelta(days=1)
+
+
+def add_months(start_date: date, months: int):
+    month_index = start_date.month - 1 + months
+    year = start_date.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(start_date.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def intern_period_dates(employee):
+    if getattr(employee, "employment_type", None) != "intern":
+        return None, None
+
+    start_date = employee_join_date(employee) + timedelta(days=1)
+    months = getattr(employee, "intern_months", None) or 0
+    if not months:
+        return start_date, None
+
+    return start_date, add_months(start_date, months)
+
+
+def internship_end_date(employee):
+    _, end_date = intern_period_dates(employee)
+    return end_date
+
+
+def is_internship_over(employee, target_date: date | None = None):
+    end_date = internship_end_date(employee)
+    target_date = target_date or date.today()
+    return bool(end_date and target_date > end_date)
 
 
 def working_days_between(start_date: date, end_date: date):
@@ -400,10 +431,23 @@ def employee_shift_date_status(
     now: datetime | None = None,
 ):
     now = now or datetime.now()
+    if is_internship_over(employee, target_date):
+        return "Internship Over"
+
     work_start = employee_work_start_date(employee)
+    attendance = get_shift_attendance(db, employee.id, target_date)
 
     if target_date < work_start:
-        if uses_next_day_work_start(employee) and target_date == employee_join_date(employee):
+        if attendance:
+            if not is_working_day(target_date):
+                return "Extra Work"
+            if attendance.status == "Leave":
+                return "On Leave"
+            if attendance.status == "Absent" and not attendance.login_time:
+                return "Absent"
+            if attendance.login_time:
+                return "Present"
+        if target_date == employee_join_date(employee):
             return JOINED_TODAY_STATUS
         return "Pending Assignment"
 
@@ -422,11 +466,14 @@ def employee_shift_date_status(
     if approved_leave_on(db, employee.id, target_date):
         return "On Leave"
 
-    attendance = get_shift_attendance(db, employee.id, target_date)
-
     if attendance:
         if not is_working_day(target_date):
             return "Extra Work"
+
+        if attendance.status == "Leave":
+            return "On Leave"
+        if attendance.status == "Absent" and not attendance.login_time:
+            return "Absent"
 
         last_punch = latest_punch(db, attendance.id)
         if last_punch and last_punch.punch_type == "in":
@@ -487,7 +534,13 @@ def approved_leave_days_in_month(db: Session, employee_id: int, month: int, year
     if not employee:
         return 0
 
-    join_date = employee_work_start_date(employee)
+    month_start, month_end = month_bounds(month, year)
+    if end_date := internship_end_date(employee):
+        month_end = min(month_end, end_date)
+        if month_end < month_start:
+            return 0
+
+    join_date = reporting_start_date(db, employee, month_start, month_end)
     leaves = db.query(Leave).filter(
         Leave.employee_id == employee_id,
         Leave.status == "approved",
@@ -496,7 +549,7 @@ def approved_leave_days_in_month(db: Session, employee_id: int, month: int, year
     leave_days = 0
     for leave in leaves:
         current = max(leave.start_date, join_date)
-        leave_end = leave.end_date
+        leave_end = min(leave.end_date, month_end)
 
         while current <= leave_end:
             if current.month == month and current.year == year and current.weekday() != 6:
@@ -521,7 +574,12 @@ def elapsed_approved_leave_days_in_month(
     total_days = monthrange(year, month)[1]
     month_start = date(year, month, 1)
     month_end = date(year, month, total_days)
-    join_date = employee_work_start_date(employee)
+    if end_date := internship_end_date(employee):
+        month_end = min(month_end, end_date)
+        if month_end < month_start:
+            return 0
+
+    join_date = reporting_start_date(db, employee, month_start, month_end)
 
     if today < month_start:
         return 0
@@ -545,20 +603,41 @@ def elapsed_approved_leave_days_in_month(
     return leave_days
 
 
-def attendance_records_in_month(db: Session, employee_id: int, month: int, year: int):
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
-    join_date = employee_work_start_date(employee) if employee else date(REPORT_START_YEAR, REPORT_START_MONTH, 1)
-
+def attendance_records_between(db: Session, employee_id: int, start_date: date, end_date: date):
     return (
         db.query(Attendance)
         .filter(
             Attendance.employee_id == employee_id,
-            extract("month", Attendance.date) == month,
-            extract("year", Attendance.date) == year,
-            Attendance.date >= join_date,
+            Attendance.date >= start_date,
+            Attendance.date <= end_date,
         )
         .all()
     )
+
+
+def first_attendance_date_between(db: Session, employee_id: int, start_date: date, end_date: date):
+    row = (
+        db.query(Attendance.date)
+        .filter(
+            Attendance.employee_id == employee_id,
+            Attendance.date >= start_date,
+            Attendance.date <= end_date,
+        )
+        .order_by(Attendance.date.asc())
+        .first()
+    )
+
+    return row[0] if row else None
+
+
+def reporting_start_date(db: Session, employee, start_date: date, end_date: date):
+    work_start = employee_work_start_date(employee)
+    first_attendance = first_attendance_date_between(db, employee.id, start_date, end_date)
+
+    if first_attendance and first_attendance < work_start:
+        work_start = first_attendance
+
+    return max(start_date, work_start)
 
 
 def attendance_total_hours(db: Session, record: Attendance, now: datetime | None = None):
@@ -588,7 +667,7 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
     if (year, month) < (REPORT_START_YEAR, REPORT_START_MONTH):
         return {
             "has_data": False,
-            "message": "No data available before May 2026",
+            "message": "No data available before January 2026",
             "working_days": 0,
             "approved_leave_days": 0,
             "effective_working_days": 0,
@@ -602,7 +681,24 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
 
     month_start = date(year, month, 1)
     month_end = date(year, month, monthrange(year, month)[1])
-    join_date = employee_work_start_date(employee)
+    if end_date := internship_end_date(employee):
+        month_end = min(month_end, end_date)
+        if month_end < month_start:
+            return {
+                "has_data": False,
+                "message": "Internship period is over",
+                "working_days": 0,
+                "approved_leave_days": 0,
+                "effective_working_days": 0,
+                "present_days": 0,
+                "absent_days": 0,
+                "extra_work_days": 0,
+                "extra_work_hours": 0,
+                "total_hours_worked": 0,
+                "attendance_percentage": 0,
+            }
+
+    join_date = reporting_start_date(db, employee, month_start, month_end)
     attendance_start = max(month_start, join_date)
 
     if month_end < join_date:
@@ -621,30 +717,36 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
         }
 
     working_days = working_days_between(attendance_start, month_end)
-    attendance_records = attendance_records_in_month(db, employee_id, month, year)
-    working_day_records = [record for record in attendance_records if is_working_day(record.date)]
-    extra_work_records = [record for record in attendance_records if not is_working_day(record.date)]
+    leave_days = approved_leave_days_in_month(db, employee_id, month, year)
+    effective_working_days = max(working_days - leave_days, 0)
+
+    today = date.today()
+    summary_end = min(today, month_end)
+    if summary_end < attendance_start:
+        summary_records = []
+        elapsed_working_days = 0
+    else:
+        summary_records = attendance_records_between(db, employee_id, attendance_start, summary_end)
+        elapsed_working_days = working_days_between(attendance_start, summary_end)
+
+    working_day_records = [record for record in summary_records if is_working_day(record.date)]
+    extra_work_records = [record for record in summary_records if not is_working_day(record.date)]
     present_days = sum(
         attendance_day_credit(record, employee.shift)
         for record in working_day_records
     )
     extra_work_days = len(extra_work_records)
-    leave_days = approved_leave_days_in_month(db, employee_id, month, year)
-    effective_working_days = max(working_days - leave_days, 0)
-
-    elapsed_end = min(date.today(), month_end)
-    elapsed_working_days = working_days_between(attendance_start, elapsed_end)
     elapsed_leave_days = elapsed_approved_leave_days_in_month(db, employee_id, month, year)
+    elapsed_effective_working_days = max(elapsed_working_days - elapsed_leave_days, 0)
     elapsed_present_days = sum(
         attendance_day_credit(record, employee.shift)
         for record in working_day_records
-        if record.date <= date.today()
     )
     absent_days = max(elapsed_working_days - elapsed_leave_days - elapsed_present_days, 0)
 
     total_hours = sum(
         attendance_total_hours(db, record).total_seconds() / 3600
-        for record in attendance_records
+        for record in summary_records
     )
     extra_work_hours = sum(
         attendance_total_hours(db, record).total_seconds() / 3600
@@ -652,8 +754,8 @@ def employee_monthly_summary(db: Session, employee_id: int, month: int, year: in
     )
 
     attendance_percentage = 0
-    if effective_working_days > 0:
-        attendance_percentage = round((present_days / effective_working_days) * 100, 2)
+    if elapsed_effective_working_days > 0:
+        attendance_percentage = round((present_days / elapsed_effective_working_days) * 100, 2)
 
     return {
         "has_data": True,

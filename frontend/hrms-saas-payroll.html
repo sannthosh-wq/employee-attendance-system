@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HRMS Salary & Payroll</title>
+    <link rel="stylesheet" href="css/hrms-payroll.css">
+</head>
+<body>
+    <aside class="app-sidebar" id="sidebar">
+        <div class="brand-row">
+            <div class="brand-mark">H</div>
+            <div class="brand-copy">
+                <strong>HumaneHR</strong>
+                <span>People operations</span>
+            </div>
+            <button class="icon-button" id="sidebarToggle" aria-label="Toggle sidebar">|||</button>
+        </div>
+        <nav class="nav-list" aria-label="Primary">
+            <button class="nav-item active" data-section="dashboard"><span>Dashboard</span></button>
+            <button class="nav-item" data-section="employees"><span>Employees</span></button>
+            <button class="nav-item" data-section="salary"><span>Salary Management</span></button>
+            <button class="nav-item" data-section="payroll"><span>Payroll</span></button>
+            <button class="nav-item" data-section="attendance"><span>Attendance</span></button>
+            <button class="nav-item" data-section="reports"><span>Reports</span></button>
+        </nav>
+    </aside>
+
+    <main class="app-shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">HRMS workspace</p>
+                <h1>Salary & Payroll Command Center</h1>
+            </div>
+            <div class="topbar-actions">
+                <label class="role-picker">
+                    <span>Viewing as</span>
+                    <select id="roleSelect">
+                        <option value="super_admin">Super Admin</option>
+                        <option value="admin">Admin</option>
+                        <option value="employee">Employee</option>
+                    </select>
+                </label>
+                <button class="primary-button" id="processQuickBtn">Run Payroll</button>
+            </div>
+        </header>
+
+        <section class="stats-grid page-fade" id="dashboard">
+            <article class="metric-card">
+                <span class="metric-label">Monthly Payroll</span>
+                <strong id="metricPayroll">0</strong>
+                <small>Projected net payout</small>
+            </article>
+            <article class="metric-card">
+                <span class="metric-label">Employees Paid</span>
+                <strong id="metricEmployees">0</strong>
+                <small>Current payroll cycle</small>
+            </article>
+            <article class="metric-card">
+                <span class="metric-label">Avg Attendance</span>
+                <strong id="metricAttendance">0%</strong>
+                <small>Across selected month</small>
+            </article>
+            <article class="metric-card">
+                <span class="metric-label">Salary Revisions</span>
+                <strong id="metricRevisions">0</strong>
+                <small>History entries</small>
+            </article>
+        </section>
+
+        <section class="content-grid" id="salary">
+            <article class="panel salary-assignment" data-super-admin-only>
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Super Admin only</p>
+                        <h2>Assign Salary</h2>
+                    </div>
+                    <span class="status-pill" id="formStatus">Ready</span>
+                </div>
+                <form id="salaryForm" novalidate>
+                    <div class="field-row">
+                        <label>
+                            Employee/Admin
+                            <select id="salaryUser"></select>
+                        </label>
+                        <label>
+                            Effective From
+                            <input type="date" id="effectiveFrom">
+                        </label>
+                    </div>
+                    <div class="salary-input-grid">
+                        <label>Basic Salary<input type="number" id="basicSalary" min="0" step="100"></label>
+                        <label>HRA<input type="number" id="hra" min="0" step="100"></label>
+                        <label>Travel Allowance<input type="number" id="travel" min="0" step="100"></label>
+                        <label>Medical Allowance<input type="number" id="medical" min="0" step="100"></label>
+                        <label>Special Allowance<input type="number" id="special" min="0" step="100"></label>
+                    </div>
+                    <div class="validation-message" id="salaryError"></div>
+                    <button class="primary-button full-width" type="submit" id="assignSalaryBtn">Assign Salary</button>
+                </form>
+            </article>
+
+            <article class="panel preview-panel">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Live calculation</p>
+                        <h2>Salary Preview</h2>
+                    </div>
+                    <span class="status-pill success" id="previewRole">Employee</span>
+                </div>
+                <div class="preview-total">
+                    <span>Total Salary</span>
+                    <strong id="salaryTotal">INR 0</strong>
+                </div>
+                <div class="component-list" id="componentList"></div>
+            </article>
+        </section>
+
+        <section class="panel table-panel" id="employees">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Revision audit</p>
+                    <h2>Salary History</h2>
+                </div>
+                <div class="table-tools">
+                    <input type="search" id="salarySearch" placeholder="Search salary history">
+                    <select id="salaryFilter">
+                        <option value="all">All roles</option>
+                        <option value="admin">Admins</option>
+                        <option value="employee">Employees</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-sort="name">Employee</th>
+                            <th data-sort="role">Role</th>
+                            <th data-sort="effectiveFrom">Effective Date</th>
+                            <th data-sort="basic">Basic</th>
+                            <th data-sort="total">Total</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salaryHistoryBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel attendance-panel" id="attendance">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Attendance integration</p>
+                    <h2>Monthly Attendance Summary</h2>
+                </div>
+                <span class="status-pill" id="attendanceQuality">Good</span>
+            </div>
+            <div class="attendance-grid">
+                <div class="attendance-tile"><span>Present</span><strong data-counter="present">0</strong></div>
+                <div class="attendance-tile"><span>Absent</span><strong data-counter="absent">0</strong></div>
+                <div class="attendance-tile"><span>Leave</span><strong data-counter="leave">0</strong></div>
+                <div class="attendance-tile">
+                    <span>Attendance</span>
+                    <strong data-counter="percentage">0%</strong>
+                    <div class="progress-track"><div id="attendanceProgress"></div></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel table-panel" id="payroll">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Payroll cycle</p>
+                    <h2>Payroll Processing</h2>
+                </div>
+                <div class="table-tools">
+                    <select id="payrollMonth"></select>
+                    <input type="number" id="payrollYear" min="2020" max="2035">
+                    <button class="primary-button" id="processPayrollBtn">Process Payroll</button>
+                </div>
+            </div>
+            <div class="processing-state" id="processingState">
+                <div class="spinner"></div>
+                <span>Calculating payroll, deductions, and attendance impact...</span>
+            </div>
+            <div class="table-tools payroll-search-row">
+                <input type="search" id="payrollSearch" placeholder="Search payroll">
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-payroll-sort="name">Employee Name</th>
+                            <th data-payroll-sort="basic">Basic Salary</th>
+                            <th data-payroll-sort="present">Present Days</th>
+                            <th data-payroll-sort="absent">Absent Days</th>
+                            <th data-payroll-sort="leave">Leave Days</th>
+                            <th data-payroll-sort="gross">Gross Salary</th>
+                            <th data-payroll-sort="deductions">Deductions</th>
+                            <th data-payroll-sort="net">Net Salary</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payrollBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel employee-only" id="reports" data-employee-only>
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Employee self-service</p>
+                    <h2>My Salary & Payslip</h2>
+                </div>
+                <button class="primary-button">Download Payslip</button>
+            </div>
+            <div class="self-card" id="selfServiceCard"></div>
+        </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+    <script src="js/hrms-payroll.js"></script>
+</body>
+</html>

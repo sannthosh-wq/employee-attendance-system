@@ -22,9 +22,10 @@ class ResetPasswordSchema(BaseModel):
 
 class AttendanceResponse(BaseModel):
     date: date
-    login_time: datetime
+    login_time: datetime | None
     logout_time: datetime | None
     total_hours: str | None
+    status: str | None = None
 
     is_late: bool
     late_minutes: int
@@ -97,6 +98,7 @@ class SalaryStructureResponse(BaseModel):
     travel_allowance: Decimal
     medical_allowance: Decimal
     special_allowance: Decimal
+    total_salary: Decimal
     effective_from: date
     is_active: bool
 

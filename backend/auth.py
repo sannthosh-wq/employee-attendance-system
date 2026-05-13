@@ -8,6 +8,7 @@ from models import Employee, PasswordReset
 from schemas import ForgotPasswordSchema, LoginSchema, RegisterSchema, ResetPasswordSchema
 from utils import hash_password, verify_password
 from jwt_handler import create_access_token
+from attendance_logic import is_internship_over
 
 router = APIRouter(
     prefix="/auth",
@@ -56,6 +57,9 @@ def login(user: LoginSchema, db: Session = Depends(get_db)):
 
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if is_internship_over(db_user):
+        raise HTTPException(status_code=403, detail="Your internship period is over so you cannot login")
 
     token = create_access_token({
         "user_id": db_user.id,

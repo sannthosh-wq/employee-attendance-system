@@ -1,5 +1,5 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
 
 if (!token) {
     window.location.href = "login.html";
@@ -58,22 +58,24 @@ async function loadAttendance() {
         table.innerHTML = "";
 
         data.forEach(record => {
-            const active = !record.logout_time;
+            const active = Boolean(record.login_time && !record.logout_time);
+            const holiday = record.status === "Holiday";
 
             table.innerHTML += `
                 <tr>
                     <td>${record.date}</td>
+                    <td>${attendanceStatusBadge(record)}</td>
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
-                    <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
-                    <td>${active ? "-" : yesNo(record.left_early)}</td>
+                    <td>${holiday ? "-" : record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
+                    <td>${holiday || active ? "-" : yesNo(record.left_early)}</td>
                 </tr>
             `;
         });
 
         if (!table.innerHTML) {
-            table.innerHTML = `<tr><td colspan="6" class="muted">No attendance records found</td></tr>`;
+            table.innerHTML = `<tr><td colspan="7" class="muted">No attendance records found</td></tr>`;
         }
     } catch (error) {
         alert(error.message);
@@ -95,6 +97,18 @@ function badge(text, type) {
 
 function yesNo(value) {
     return value ? badge("Yes", "warning") : badge("No", "success");
+}
+
+function attendanceStatusBadge(record) {
+    const status = record.status || (record.login_time ? "Present" : "-");
+    return status === "-" ? "-" : badge(status, statusClass(status));
+}
+
+function statusClass(status) {
+    if (status === "Present" || status === "Working (Punched In)") return "success";
+    if (status === "On Leave" || status === "Leave") return "warning";
+    if (status === "Pending Assignment" || status === "Shift Not Started" || status === "No Attendance" || status === "Holiday" || status === "Extra Work") return "neutral";
+    return "danger";
 }
 
 function setText(id, value) {

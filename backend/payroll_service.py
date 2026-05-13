@@ -13,10 +13,83 @@ from models import Employee, Payroll, PayrollAllowance, PayrollDeduction, Salary
 
 COMPANY_NAME = "Employee Attendance System"
 PF_PERCENTAGE = Decimal("12")
+EMPLOYEE_MIN_BASIC_SALARY = Decimal("25000")
+ADMIN_MIN_BASIC_SALARY = Decimal("35000")
+ADMIN_ROLES = {"admin"}
+PROTECTED_ROLES = {"admin", "super_admin"}
+ROLE_SALARY_COMPONENTS = {
+    "admin": {
+        "basic_salary": Decimal("50000"),
+        "hra": Decimal("15000"),
+        "travel_allowance": Decimal("4000"),
+        "medical_allowance": Decimal("3000"),
+        "special_allowance": Decimal("8000"),
+    },
+    "software_engineer": {
+        "basic_salary": Decimal("42000"),
+        "hra": Decimal("12000"),
+        "travel_allowance": Decimal("3500"),
+        "medical_allowance": Decimal("2500"),
+        "special_allowance": Decimal("6000"),
+    },
+    "backend_developer": {
+        "basic_salary": Decimal("40000"),
+        "hra": Decimal("11000"),
+        "travel_allowance": Decimal("3200"),
+        "medical_allowance": Decimal("2400"),
+        "special_allowance": Decimal("5400"),
+    },
+    "frontend_developer": {
+        "basic_salary": Decimal("38000"),
+        "hra": Decimal("10500"),
+        "travel_allowance": Decimal("3000"),
+        "medical_allowance": Decimal("2200"),
+        "special_allowance": Decimal("5000"),
+    },
+    "ml_developer": {
+        "basic_salary": Decimal("43000"),
+        "hra": Decimal("12500"),
+        "travel_allowance": Decimal("3500"),
+        "medical_allowance": Decimal("2600"),
+        "special_allowance": Decimal("6500"),
+    },
+    "data_scientist": {
+        "basic_salary": Decimal("45000"),
+        "hra": Decimal("13000"),
+        "travel_allowance": Decimal("3500"),
+        "medical_allowance": Decimal("2700"),
+        "special_allowance": Decimal("7000"),
+    },
+    "data_analyst": {
+        "basic_salary": Decimal("36000"),
+        "hra": Decimal("9500"),
+        "travel_allowance": Decimal("2800"),
+        "medical_allowance": Decimal("2000"),
+        "special_allowance": Decimal("4200"),
+    },
+    "developer": {
+        "basic_salary": Decimal("35000"),
+        "hra": Decimal("9500"),
+        "travel_allowance": Decimal("2800"),
+        "medical_allowance": Decimal("2000"),
+        "special_allowance": Decimal("4200"),
+    },
+}
+DEFAULT_EMPLOYEE_SALARY_COMPONENTS = {
+    "basic_salary": Decimal("30000"),
+    "hra": Decimal("8000"),
+    "travel_allowance": Decimal("2000"),
+    "medical_allowance": Decimal("1500"),
+    "special_allowance": Decimal("3000"),
+}
 
 
 def money(value) -> Decimal:
     return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def salary_components_for_role(role: str | None) -> dict[str, Decimal]:
+    return ROLE_SALARY_COMPONENTS.get(role or "", DEFAULT_EMPLOYEE_SALARY_COMPONENTS)
 
 
 def validate_salary_amounts(*amounts):
@@ -24,17 +97,56 @@ def validate_salary_amounts(*amounts):
         raise HTTPException(status_code=400, detail="Salary amounts cannot be negative")
 
 
-def create_salary_revision(db: Session, salary_data, created_by: int):
+def salary_total(salary_data) -> Decimal:
+    return money(
+        money(salary_data.basic_salary)
+        + money(salary_data.hra)
+        + money(salary_data.travel_allowance)
+        + money(salary_data.medical_allowance)
+        + money(getattr(salary_data, "special_allowance", 0))
+    )
+
+
+def validate_salary_assignment_permissions(assigner: Employee, target: Employee, basic_salary: Decimal):
+    target_role = target.role
+
+    if target.employment_type == "intern" and (target.intern_months or 0) < 3:
+        raise HTTPException(status_code=400, detail="Salary cannot be assigned to interns below 3 months")
+
+    if assigner.role == "admin":
+        if target_role in PROTECTED_ROLES:
+            raise HTTPException(status_code=403, detail="Admin can assign salary only to employees")
+        if money(basic_salary) <= EMPLOYEE_MIN_BASIC_SALARY:
+            raise HTTPException(status_code=400, detail="Employee basic salary must be greater than 25000")
+        return
+
+    if assigner.role == "super_admin":
+        if target_role not in ADMIN_ROLES:
+            raise HTTPException(status_code=403, detail="Super admin can assign salary only to admins")
+        if money(basic_salary) <= ADMIN_MIN_BASIC_SALARY:
+            raise HTTPException(status_code=400, detail="Admin basic salary must be greater than 35000")
+        return
+
+    raise HTTPException(status_code=403, detail="Only admin or super admin can assign salary")
+
+
+def create_salary_revision(db: Session, salary_data, created_by: int, current_user: Employee | None = None):
     employee = db.query(Employee).filter(Employee.id == salary_data.employee_id).first()
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
+
+    assigner = current_user or db.query(Employee).filter(Employee.id == created_by).first()
+    if not assigner:
+        raise HTTPException(status_code=403, detail="Authenticated user not found")
 
     validate_salary_amounts(
         salary_data.basic_salary,
         salary_data.hra,
         salary_data.travel_allowance,
         salary_data.medical_allowance,
+        getattr(salary_data, "special_allowance", 0),
     )
+    validate_salary_assignment_permissions(assigner, employee, salary_data.basic_salary)
 
     db.query(SalaryStructure).filter(
         SalaryStructure.employee_id == salary_data.employee_id,
@@ -48,6 +160,7 @@ def create_salary_revision(db: Session, salary_data, created_by: int):
         travel_allowance=money(salary_data.travel_allowance),
         medical_allowance=money(salary_data.medical_allowance),
         special_allowance=money(getattr(salary_data, "special_allowance", 0)),
+        total_salary=salary_total(salary_data),
         effective_from=salary_data.effective_from,
         created_by=created_by,
         is_active=True,
@@ -58,7 +171,7 @@ def create_salary_revision(db: Session, salary_data, created_by: int):
     return salary
 
 
-def revise_salary_structure(db: Session, salary_id: int, salary_data, created_by: int):
+def revise_salary_structure(db: Session, salary_id: int, salary_data, created_by: int, current_user: Employee | None = None):
     current = db.query(SalaryStructure).filter(SalaryStructure.id == salary_id).first()
     if not current:
         raise HTTPException(status_code=404, detail="Salary structure not found")
@@ -72,7 +185,7 @@ def revise_salary_structure(db: Session, salary_id: int, salary_data, created_by
         special_allowance=getattr(salary_data, "special_allowance", 0),
         effective_from=salary_data.effective_from,
     )
-    return create_salary_revision(db, revision, created_by)
+    return create_salary_revision(db, revision, created_by, current_user)
 
 
 def active_salary_for_month(db: Session, employee_id: int, month: int, year: int):
@@ -102,9 +215,10 @@ def payroll_components(salary: SalaryStructure, summary: dict, tax_percentage: D
     hra = money(salary.hra)
     travel = money(salary.travel_allowance)
     medical = money(salary.medical_allowance)
+    special = money(getattr(salary, "special_allowance", 0))
     absent_days = money(summary.get("absent_days", 0))
 
-    gross = money(basic + hra + travel + medical)
+    gross = money(basic + hra + travel + medical + special)
     loss_of_pay = money((basic / Decimal("30")) * absent_days)
     pf = money(basic * PF_PERCENTAGE / Decimal("100"))
     tax = money(gross * money(tax_percentage) / Decimal("100"))
@@ -116,7 +230,7 @@ def payroll_components(salary: SalaryStructure, summary: dict, tax_percentage: D
         "hra": hra,
         "travel_allowance": travel,
         "medical_allowance": medical,
-        "special_allowance": Decimal("0.00"),
+        "special_allowance": special,
         "gross_salary": gross,
         "overtime_hours": Decimal("0.00"),
         "overtime_pay": Decimal("0.00"),
@@ -191,17 +305,36 @@ def process_employee_payroll(db: Session, employee: Employee, month: int, year: 
     return payroll
 
 
-def process_monthly_payroll(db: Session, month: int, year: int, tax_percentage: Decimal, processed_by: int, employee_id: int | None = None):
+def process_monthly_payroll(
+    db: Session,
+    month: int,
+    year: int,
+    tax_percentage: Decimal,
+    processed_by: int,
+    employee_id: int | None = None,
+    processor_role: str | None = None,
+):
     if month < 1 or month > 12:
         raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
 
-    query = db.query(Employee).filter(Employee.role != "super_admin")
+    query = db.query(Employee)
     if employee_id:
         query = query.filter(Employee.id == employee_id)
+    elif processor_role != "super_admin":
+        query = query.filter(Employee.id != processed_by)
+
+    if processor_role != "super_admin":
+        query = query.filter(Employee.role != "super_admin")
 
     employees = query.order_by(Employee.id.asc()).all()
     if not employees:
         raise HTTPException(status_code=404, detail="No employees found")
+
+    if processor_role != "super_admin":
+        if any(employee.id == processed_by for employee in employees):
+            raise HTTPException(status_code=403, detail="Admins cannot process payroll for themselves")
+        if any(employee.role == "super_admin" for employee in employees):
+            raise HTTPException(status_code=403, detail="Only super admin can process super admin payroll")
 
     payrolls = [
         process_employee_payroll(db, employee, month, year, tax_percentage, processed_by)
@@ -217,20 +350,92 @@ def pdf_escape(value) -> str:
     return str(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def generate_simple_pdf(lines: list[str], path: str):
-    content = ["BT", "/F1 11 Tf", "50 780 Td"]
-    for index, line in enumerate(lines):
-        if index:
-            content.append("0 -18 Td")
-        content.append(f"({pdf_escape(line)}) Tj")
-    content.append("ET")
+def pdf_text(text: str, x: int, y: int, size: int = 10, font: str = "F1") -> str:
+    return f"BT /{font} {size} Tf {x} {y} Td ({pdf_escape(text)}) Tj ET"
+
+
+def pdf_line(x1: int, y1: int, x2: int, y2: int) -> str:
+    return f"{x1} {y1} m {x2} {y2} l S"
+
+
+def pdf_rect(x: int, y: int, width: int, height: int, fill: bool = False) -> str:
+    return f"{x} {y} {width} {height} re {'f' if fill else 'S'}"
+
+
+def generate_company_payslip_pdf(employee: Employee, payroll: Payroll, path: str):
+    earnings = [
+        ("Basic Salary", payroll.basic_salary),
+        ("HRA", payroll.hra),
+        ("Travel Allowance", payroll.travel_allowance),
+        ("Medical Allowance", payroll.medical_allowance),
+        ("Special Allowance", payroll.special_allowance),
+    ]
+    deductions = [
+        ("Provident Fund", payroll.pf),
+        (f"Tax ({money(payroll.tax_percentage)}%)", payroll.tax),
+        ("Loss of Pay", payroll.loss_of_pay),
+    ]
+
+    content = [
+        "0.95 0.97 1 rg",
+        pdf_rect(0, 760, 595, 82, True),
+        "0 0 0 RG 0 0 0 rg",
+        pdf_text(COMPANY_NAME, 42, 805, 20, "F2"),
+        pdf_text("Official Salary Slip", 42, 786, 11),
+        pdf_text(f"Payslip ID: PAY-{payroll.year}-{payroll.month:02d}-{payroll.employee_id}", 380, 807, 9),
+        pdf_text(f"Pay Period: {payroll.month:02d}-{payroll.year}", 380, 791, 9),
+        pdf_text(f"Processed On: {payroll.processed_at.date() if payroll.processed_at else '-'}", 380, 775, 9),
+        pdf_line(42, 748, 553, 748),
+        pdf_text("Employee Information", 42, 724, 13, "F2"),
+        pdf_rect(42, 632, 511, 78),
+        pdf_text(f"Name: {employee.name}", 58, 687, 10),
+        pdf_text(f"Employee Code: {employee.employee_code or employee.id}", 58, 667, 10),
+        pdf_text(f"Email: {employee.email}", 58, 647, 10),
+        pdf_text(f"Role: {(employee.role or '-').replace('_', ' ').title()}", 330, 687, 10),
+        pdf_text(f"Working Days: {payroll.total_days}", 330, 667, 10),
+        pdf_text(f"Present / Leave / Absent: {payroll.present_days} / {payroll.leave_days} / {payroll.absent_days}", 330, 647, 10),
+        pdf_text("Earnings", 42, 604, 13, "F2"),
+        pdf_text("Deductions", 322, 604, 13, "F2"),
+        pdf_rect(42, 452, 230, 136),
+        pdf_rect(322, 452, 230, 136),
+    ]
+
+    y = 566
+    for label, amount in earnings:
+        content.append(pdf_text(label, 58, y, 9))
+        content.append(pdf_text(f"INR {money(amount)}", 184, y, 9))
+        y -= 22
+
+    y = 566
+    for label, amount in deductions:
+        content.append(pdf_text(label, 338, y, 9))
+        content.append(pdf_text(f"INR {money(amount)}", 462, y, 9))
+        y -= 22
+
+    content.extend([
+        pdf_line(58, 474, 256, 474),
+        pdf_line(338, 474, 536, 474),
+        pdf_text("Gross Earnings", 58, 458, 10, "F2"),
+        pdf_text(f"INR {money(payroll.gross_salary)}", 174, 458, 10, "F2"),
+        pdf_text("Total Deductions", 338, 458, 10, "F2"),
+        pdf_text(f"INR {money(payroll.total_deductions)}", 454, 458, 10, "F2"),
+        "0.90 0.96 0.93 rg",
+        pdf_rect(42, 374, 511, 52, True),
+        "0 0 0 RG 0 0 0 rg",
+        pdf_text(f"Net Pay: INR {money(payroll.net_salary)}", 58, 404, 18, "F2"),
+        pdf_text("This is a system generated payslip and does not require a signature.", 58, 346, 9),
+        pdf_text("For payroll queries, contact HR Operations.", 58, 330, 9),
+        pdf_line(42, 90, 553, 90),
+        pdf_text(f"{COMPANY_NAME} | Confidential Payroll Document", 42, 70, 9),
+    ])
     stream = "\n".join(content).encode("latin-1", "replace")
 
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
         b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
     ]
 
@@ -257,29 +462,5 @@ def generate_payslip_pdf(employee: Employee, payroll: Payroll):
     directory = os.path.join("payslips", str(payroll.year), f"{payroll.month:02d}")
     filename = f"payslip-{employee.id}-{payroll.year}-{payroll.month:02d}.pdf"
     path = os.path.join(directory, filename)
-    lines = [
-        COMPANY_NAME,
-        f"Payslip for {payroll.month:02d}-{payroll.year}",
-        "",
-        f"Employee: {employee.name}",
-        f"Employee Code: {employee.employee_code or employee.id}",
-        f"Email: {employee.email}",
-        f"Role: {employee.role or '-'}",
-        "",
-        "Earnings",
-        f"Basic Salary: {money(payroll.basic_salary)}",
-        f"HRA: {money(payroll.hra)}",
-        f"Travel Allowance: {money(payroll.travel_allowance)}",
-        f"Medical Allowance: {money(payroll.medical_allowance)}",
-        f"Gross Salary: {money(payroll.gross_salary)}",
-        "",
-        "Deductions",
-        f"PF: {money(payroll.pf)}",
-        f"Tax ({money(payroll.tax_percentage)}%): {money(payroll.tax)}",
-        f"Loss of Pay: {money(payroll.loss_of_pay)}",
-        f"Total Deductions: {money(payroll.total_deductions)}",
-        "",
-        f"Net Salary: {money(payroll.net_salary)}",
-    ]
-    generate_simple_pdf(lines, path)
+    generate_company_payslip_pdf(employee, payroll, path)
     return f"/{path.replace(os.sep, '/')}"

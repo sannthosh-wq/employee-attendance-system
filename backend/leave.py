@@ -96,6 +96,19 @@ def validate_monthly_leave_balance(
             )
 
 
+def leave_balance_warnings(db: Session, employee_id: int, start_date: date, end_date: date):
+    warnings = []
+    for (year, month), requested_days in requested_leave_days_by_month(start_date, end_date).items():
+        balance = employee_leave_balance(db, employee_id, month=month, year=year)
+        if requested_days > balance["remaining_days"]:
+            month_name = date(year, month, 1).strftime("%B %Y")
+            warnings.append(
+                f"{month_name}: available {balance['remaining_days']} day(s), requested {requested_days} day(s)"
+            )
+
+    return warnings
+
+
 def can_update_leave(current_user, leave_owner, db: Session):
     if leave_owner.role == "super_admin":
         raise HTTPException(status_code=403, detail="Super admin leave cannot be updated")
@@ -111,24 +124,46 @@ def apply_leave(
 ):
 
     require_leave_applicant(current_user)
+    start_date = leave_data.start_date
+    end_date = leave_data.end_date
+    reason = leave_data.reason.strip() or "Leave request"
 
-    if leave_data.start_date < date.today():
-        raise HTTPException(status_code=400, detail="Cannot apply leave for past dates")
+    if end_date < start_date:
+        start_date, end_date = end_date, start_date
 
-    if leave_data.end_date < leave_data.start_date:
-        raise HTTPException(status_code=400, detail="End date cannot be before start date")
+    total_days = working_leave_days(start_date, end_date)
 
-    if has_leave_overlap(db, current_user.id, leave_data.start_date, leave_data.end_date):
-        raise HTTPException(status_code=400, detail="Leave request overlaps an existing leave")
+    warnings = leave_balance_warnings(db, current_user.id, start_date, end_date)
+    if start_date < date.today():
+        warnings.append("This request includes a past date and will need admin review")
+    if total_days <= 0:
+        warnings.append("This request only includes holidays and will need admin review")
 
-    total_days = working_leave_days(leave_data.start_date, leave_data.end_date)
-    validate_monthly_leave_balance(db, current_user.id, leave_data.start_date, leave_data.end_date)
+    existing_leave = (
+        db.query(Leave)
+        .filter(
+            Leave.employee_id == current_user.id,
+            Leave.start_date == start_date,
+            Leave.end_date == end_date,
+            Leave.status.in_(["pending", "approved"]),
+        )
+        .first()
+    )
+    if existing_leave:
+        return {
+            "message": f"Leave request already {existing_leave.status}",
+            "leave_id": existing_leave.id,
+            "total_days": total_days,
+            "balance_warning": "; ".join(warnings) if warnings else None,
+            "leave_balance": employee_leave_balance(db, current_user.id),
+        }
 
     new_leave = Leave(
         employee_id=current_user.id,
-        start_date=leave_data.start_date,
-        end_date=leave_data.end_date,
-        reason=leave_data.reason,
+        start_date=start_date,
+        end_date=end_date,
+        leave_date=start_date,
+        reason=reason,
         status="pending"
     )
 
@@ -137,15 +172,18 @@ def apply_leave(
     notify_admins(
         db,
         "New leave request",
-        f"{current_user.name} requested {total_days} leave day(s) from {leave_data.start_date} to {leave_data.end_date}.",
+        f"{current_user.name} requested {total_days} leave day(s) from {start_date} to {end_date}.",
         "leave_request",
         current_user.id,
     )
     db.commit()
+    db.refresh(new_leave)
 
     return {
         "message": "Leave applied successfully",
+        "leave_id": new_leave.id,
         "total_days": total_days,
+        "balance_warning": "; ".join(warnings) if warnings else None,
         "leave_balance": employee_leave_balance(db, current_user.id),
     }
 

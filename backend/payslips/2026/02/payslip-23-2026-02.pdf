@@ -1,0 +1,85 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+6 0 obj
+<< /Length 2190 >>
+stream
+0.95 0.97 1 rg
+0 760 595 82 re f
+0 0 0 RG 0 0 0 rg
+BT /F2 20 Tf 42 805 Td (Employee Attendance System) Tj ET
+BT /F1 11 Tf 42 786 Td (Official Salary Slip) Tj ET
+BT /F1 9 Tf 380 807 Td (Payslip ID: PAY-2026-02-23) Tj ET
+BT /F1 9 Tf 380 791 Td (Pay Period: 02-2026) Tj ET
+BT /F1 9 Tf 380 775 Td (Processed On: 2026-05-13) Tj ET
+42 748 m 553 748 l S
+BT /F2 13 Tf 42 724 Td (Employee Information) Tj ET
+42 632 511 78 re S
+BT /F1 10 Tf 58 687 Td (Name: Rupika) Tj ET
+BT /F1 10 Tf 58 667 Td (Employee Code: EMS-2026-0023) Tj ET
+BT /F1 10 Tf 58 647 Td (Email: rupika@gmail.com) Tj ET
+BT /F1 10 Tf 330 687 Td (Role: Ml Developer) Tj ET
+BT /F1 10 Tf 330 667 Td (Working Days: 28) Tj ET
+BT /F1 10 Tf 330 647 Td (Present / Leave / Absent: 22.00 / 0.00 / 2.00) Tj ET
+BT /F2 13 Tf 42 604 Td (Earnings) Tj ET
+BT /F2 13 Tf 322 604 Td (Deductions) Tj ET
+42 452 230 136 re S
+322 452 230 136 re S
+BT /F1 9 Tf 58 566 Td (Basic Salary) Tj ET
+BT /F1 9 Tf 184 566 Td (INR 43000.00) Tj ET
+BT /F1 9 Tf 58 544 Td (HRA) Tj ET
+BT /F1 9 Tf 184 544 Td (INR 12500.00) Tj ET
+BT /F1 9 Tf 58 522 Td (Travel Allowance) Tj ET
+BT /F1 9 Tf 184 522 Td (INR 3500.00) Tj ET
+BT /F1 9 Tf 58 500 Td (Medical Allowance) Tj ET
+BT /F1 9 Tf 184 500 Td (INR 2600.00) Tj ET
+BT /F1 9 Tf 58 478 Td (Special Allowance) Tj ET
+BT /F1 9 Tf 184 478 Td (INR 6500.00) Tj ET
+BT /F1 9 Tf 338 566 Td (Provident Fund) Tj ET
+BT /F1 9 Tf 462 566 Td (INR 5160.00) Tj ET
+BT /F1 9 Tf 338 544 Td (Tax \(0.00%\)) Tj ET
+BT /F1 9 Tf 462 544 Td (INR 0.00) Tj ET
+BT /F1 9 Tf 338 522 Td (Loss of Pay) Tj ET
+BT /F1 9 Tf 462 522 Td (INR 2866.67) Tj ET
+58 474 m 256 474 l S
+338 474 m 536 474 l S
+BT /F2 10 Tf 58 458 Td (Gross Earnings) Tj ET
+BT /F2 10 Tf 174 458 Td (INR 68100.00) Tj ET
+BT /F2 10 Tf 338 458 Td (Total Deductions) Tj ET
+BT /F2 10 Tf 454 458 Td (INR 8026.67) Tj ET
+0.90 0.96 0.93 rg
+42 374 511 52 re f
+0 0 0 RG 0 0 0 rg
+BT /F2 18 Tf 58 404 Td (Net Pay: INR 60073.33) Tj ET
+BT /F1 9 Tf 58 346 Td (This is a system generated payslip and does not require a signature.) Tj ET
+BT /F1 9 Tf 58 330 Td (For payroll queries, contact HR Operations.) Tj ET
+42 90 m 553 90 l S
+BT /F1 9 Tf 42 70 Td (Employee Attendance System | Confidential Payroll Document) Tj ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000000321 00000 n 
+0000000396 00000 n 
+trailer << /Size 7 /Root 1 0 R >>
+startxref
+2638
+%%EOF

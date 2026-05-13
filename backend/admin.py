@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, extract, func, or_
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from attendance_logic import (
@@ -20,10 +20,12 @@ from attendance_logic import (
     employee_leave_balance,
     employee_monthly_summary,
     employee_shift_date_status,
-    NEXT_DAY_WORK_START_FROM,
-    employee_work_start_date,
+    intern_period_dates,
+    internship_end_date,
     is_working_day,
     late_minutes,
+    normalized_shift,
+    reporting_start_date,
     working_leave_days,
 )
 from database import SessionLocal
@@ -63,7 +65,7 @@ def employee_payload(emp: Employee):
         "name": emp.name,
         "email": emp.email,
         "role": emp.role,
-        "shift": emp.shift,
+        "shift": normalized_shift(emp.shift),
         "employment_type": emp.employment_type or "full_time",
         "intern_months": emp.intern_months,
         "profile_photo": emp.profile_photo,
@@ -139,14 +141,49 @@ def build_shift_summary(db: Session, target_date: date | None = None):
     return summary
 
 
-def excel_response(headers, rows, filename: str):
+COMPANY_NAME = "Employee Attendance System"
+
+
+def excel_response(headers, rows, filename: str, title: str = "Attendance Report", subtitle: str = ""):
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    column_count = len(headers)
     html = [
-        "<html><head><meta charset='utf-8'></head><body><table border='1'>",
-        "<tr>" + "".join(f"<th>{escape(str(header))}</th>" for header in headers) + "</tr>",
+        "<html><head><meta charset='utf-8'><style>",
+        "body{font-family:Arial,sans-serif;color:#172033}",
+        "table{border-collapse:collapse;width:100%}",
+        "td,th{border:1px solid #b8c4d6;padding:8px;mso-number-format:'\\@'}",
+        ".company{background:#1e3a8a;color:#fff;font-size:20px;font-weight:bold}",
+        ".title{background:#dbeafe;color:#172033;font-size:16px;font-weight:bold}",
+        ".meta{background:#f8fafc;color:#475569;font-weight:bold}",
+        ".header{background:#334155;color:#fff;font-weight:bold}",
+        ".success{background:#dcfce7;color:#166534;font-weight:bold}",
+        ".warning{background:#fef3c7;color:#92400e;font-weight:bold}",
+        ".danger{background:#fee2e2;color:#991b1b;font-weight:bold}",
+        ".neutral{background:#f1f5f9;color:#334155}",
+        "</style></head><body><table>",
+        f"<tr><td class='company' colspan='{column_count}'>{escape(COMPANY_NAME)}</td></tr>",
+        f"<tr><td class='title' colspan='{column_count}'>{escape(title)}</td></tr>",
+        f"<tr><td class='meta' colspan='{column_count}'>{escape(subtitle)}</td></tr>",
+        f"<tr><td class='meta' colspan='{column_count}'>Generated At: {escape(generated_at)}</td></tr>",
+        f"<tr><td colspan='{column_count}'></td></tr>",
+        "<tr>" + "".join(f"<th class='header'>{escape(str(header))}</th>" for header in headers) + "</tr>",
     ]
 
     for row in rows:
-        html.append("<tr>" + "".join(f"<td>{escape(str(value or ''))}</td>" for value in row) + "</tr>")
+        cells = []
+        for value in row:
+            text = str(value if value is not None else "")
+            css_class = ""
+            if text in {"Present", "Working (Punched In)", "Yes"}:
+                css_class = " class='success'"
+            elif text in {"Leave", "On Leave"}:
+                css_class = " class='warning'"
+            elif text in {"Absent", "No"}:
+                css_class = " class='danger'"
+            elif text in {"No Attendance", "Holiday", "Shift Not Started", "Pending Assignment"}:
+                css_class = " class='neutral'"
+            cells.append(f"<td{css_class}>{escape(text)}</td>")
+        html.append("<tr>" + "".join(cells) + "</tr>")
 
     html.append("</table></body></html>")
     stream = iter(["".join(html).encode("utf-8")])
@@ -170,7 +207,10 @@ def attendance_record_for_date(db: Session, employee_id: int, target_date: date)
 
 
 def employee_period_attendance_summary(db: Session, employee: Employee, start_date: date, end_date: date):
-    attendance_start = max(start_date, employee_work_start_date(employee))
+    if intern_end := internship_end_date(employee):
+        end_date = min(end_date, intern_end)
+
+    attendance_start = reporting_start_date(db, employee, start_date, end_date)
 
     if end_date < attendance_start:
         return {
@@ -245,14 +285,6 @@ def parse_week_input(week: str):
     return week_start, week_start + timedelta(days=6)
 
 
-def add_months(start_date: date, months: int):
-    month_index = start_date.month - 1 + months
-    year = start_date.year + month_index // 12
-    month = month_index % 12 + 1
-    day = min(start_date.day, monthrange(year, month)[1])
-    return date(year, month, day)
-
-
 @router.get("/employees")
 def get_employees(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     require_admin(current_user)
@@ -319,24 +351,37 @@ def delete_employee(
 
 @router.get("/attendance")
 def all_attendance(
+    month: int | None = None,
+    year: int | None = None,
+    shift: str = "all",
+    role: str = "all",
+    employee_id: int | None = None,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
 
-    records = (
+    query = (
         db.query(Attendance, Employee)
         .join(Employee, Attendance.employee_id == Employee.id)
         .filter(Employee.role != "super_admin")
-        .filter(
-            or_(
-                and_(Employee.joined_at < NEXT_DAY_WORK_START_FROM, Attendance.date >= Employee.joined_at),
-                and_(Employee.joined_at >= NEXT_DAY_WORK_START_FROM, Attendance.date > Employee.joined_at),
-            )
-        )
-        .order_by(Attendance.date.desc(), Attendance.login_time.desc())
-        .all()
     )
+
+    if month:
+        query = query.filter(extract("month", Attendance.date) == month)
+    if year:
+        query = query.filter(extract("year", Attendance.date) == year)
+    if shift != "all":
+        if shift == "morning":
+            query = query.filter(Employee.shift.in_(["morning", "day"]))
+        else:
+            query = query.filter(Employee.shift == shift)
+    if role != "all":
+        query = query.filter(Employee.role == role)
+    if employee_id:
+        query = query.filter(Employee.id == employee_id)
+
+    records = query.order_by(Attendance.date.desc(), Attendance.login_time.desc()).all()
 
     return [
         {
@@ -346,13 +391,16 @@ def all_attendance(
             "employee_name": employee.name,
             "email": employee.email,
             "role": employee.role,
-            "shift": employee.shift,
+            "shift": normalized_shift(employee.shift),
             "employment_type": employee.employment_type,
             "joined_at": employee.joined_at,
             "date": attendance.date,
             "login_time": attendance.login_time,
             "logout_time": attendance.logout_time,
-            "total_hours": str(attendance_total_hours(db, attendance)),
+            "total_hours": str(attendance_total_hours(db, attendance))
+            if attendance.login_time and not attendance.logout_time
+            else str(attendance.total_hours or timedelta()),
+            "status": attendance.status,
             "is_late": attendance.is_late,
             "late_minutes": late_minutes(attendance, employee.shift),
             "left_early": attendance.left_early,
@@ -677,30 +725,38 @@ def employee_growth(
     require_admin(current_user)
 
     today = date.today()
-    join_year = extract("year", Employee.joined_at)
-    join_month = extract("month", Employee.joined_at)
-    month_rows = (
-        db.query(
-            join_year.label("year"),
-            join_month.label("month"),
-            func.count(Employee.id).label("count"),
-        )
-        .filter(Employee.role != "super_admin")
-        .group_by(join_year, join_month)
-        .order_by(join_year, join_month)
+    non_super_admin = (Employee.role.is_(None)) | (Employee.role != "super_admin")
+    joined_employees = (
+        db.query(Employee)
+        .filter(non_super_admin)
+        .order_by(Employee.joined_at.asc(), Employee.id.asc())
         .all()
     )
     type_rows = (
         db.query(Employee.employment_type, func.count(Employee.id))
-        .filter(Employee.role != "super_admin")
+        .filter(non_super_admin)
         .group_by(Employee.employment_type)
         .all()
     )
+    monthly_growth = {}
+    for employee in joined_employees:
+        joined_at = employee.joined_at or date(2026, 1, 1)
+        key = joined_at.strftime("%Y-%m")
+        monthly_growth.setdefault(key, []).append({
+            "id": employee.id,
+            "employee_code": employee.employee_code,
+            "name": employee.name,
+            "email": employee.email,
+            "role": employee.role,
+            "shift": normalized_shift(employee.shift),
+            "employment_type": employee.employment_type or "full_time",
+            "joined_at": joined_at,
+        })
 
     return {
-        "total_employees": db.query(Employee).filter(Employee.role != "super_admin").count(),
+        "total_employees": len(joined_employees),
         "joined_this_month": db.query(Employee).filter(
-            Employee.role != "super_admin",
+            non_super_admin,
             extract("month", Employee.joined_at) == today.month,
             extract("year", Employee.joined_at) == today.year,
         ).count(),
@@ -710,10 +766,11 @@ def employee_growth(
         },
         "monthly": [
             {
-                "month": f"{int(row.year)}-{int(row.month):02d}",
-                "count": row.count,
+                "month": month,
+                "count": len(employees),
+                "employees": employees,
             }
-            for row in month_rows
+            for month, employees in monthly_growth.items()
         ],
     }
 
@@ -741,10 +798,6 @@ def admin_dashboard(
         .join(Employee, Attendance.employee_id == Employee.id)
         .filter(
             Employee.role != "super_admin",
-            or_(
-                and_(Employee.joined_at < NEXT_DAY_WORK_START_FROM, Attendance.date >= Employee.joined_at),
-                and_(Employee.joined_at >= NEXT_DAY_WORK_START_FROM, Attendance.date > Employee.joined_at),
-            ),
             extract("month", Attendance.date) == today.month,
             extract("year", Attendance.date) == today.year,
         )
@@ -790,6 +843,7 @@ def monthly_attendance_report(
             "joined_at": emp.joined_at,
             "present_days": summary["present_days"],
             "approved_leave_days": summary["approved_leave_days"],
+            "absent_days": summary["absent_days"],
             "effective_working_days": summary["effective_working_days"],
             "extra_work_days": summary["extra_work_days"],
             "extra_work_hours": summary["extra_work_hours"],
@@ -820,9 +874,7 @@ def intern_attendance_report(
     report = []
 
     for emp in interns:
-        months = emp.intern_months or 0
-        start_date = emp.joined_at
-        end_date = add_months(start_date, months) - timedelta(days=1) if months else date.today()
+        start_date, end_date = intern_period_dates(emp)
         summary = employee_period_attendance_summary(db, emp, start_date, end_date)
         report.append({
             "employee_id": emp.id,
@@ -881,7 +933,13 @@ def intern_attendance_report_excel(
         ]
         for row in data["report"]
     ]
-    return excel_response(headers, rows, "intern-attendance-report.xls")
+    return excel_response(
+        headers,
+        rows,
+        "intern-attendance-report.xls",
+        "Intern Attendance Report",
+        "Complete internship attendance summary",
+    )
 
 
 @router.get("/monthly-attendance-report/excel")
@@ -901,40 +959,36 @@ def monthly_attendance_report_excel(
         "Joined",
         "Present Days",
         "Approved Leave Days",
+        "Absent Days",
         "Effective Working Days",
         "Extra Work Days",
         "Extra Work Hours",
         "Attendance Percentage",
     ]
 
-    html = [
-        "<html><head><meta charset='utf-8'></head><body><table border='1'>",
-        "<tr>" + "".join(f"<th>{escape(header)}</th>" for header in headers) + "</tr>",
-    ]
-
+    rows = []
     for row in data["report"]:
-        values = [
+        rows.append([
             row["employee_code"],
             row["name"],
             row["employment_type"],
             row["joined_at"],
             row["present_days"],
             row["approved_leave_days"],
+            row["absent_days"],
             row["effective_working_days"],
             row["extra_work_days"],
             row["extra_work_hours"],
             row["attendance_percentage"],
-        ]
-        html.append("<tr>" + "".join(f"<td>{escape(str(value or ''))}</td>" for value in values) + "</tr>")
-
-    html.append("</table></body></html>")
-    stream = iter(["".join(html).encode("utf-8")])
+        ])
 
     filename = f"attendance-report-{year}-{month:02d}.xls"
-    return StreamingResponse(
-        stream,
-        media_type="application/vnd.ms-excel",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    return excel_response(
+        headers,
+        rows,
+        filename,
+        "Monthly Attendance Report",
+        f"Payroll Month: {month:02d}-{year}",
     )
 
 
@@ -998,7 +1052,13 @@ def attendance_report_excel(
                 "Leave" if is_leave else ("Yes" if record and record.left_early else "No"),
             ])
 
-        return excel_response(headers, rows, f"daily-attendance-report-{report_date}.xls")
+        return excel_response(
+            headers,
+            rows,
+            f"daily-attendance-report-{report_date}.xls",
+            "Daily Attendance Report",
+            f"Report Date: {report_date}",
+        )
 
     if period == "weekly":
         if not week:
@@ -1054,7 +1114,13 @@ def attendance_report_excel(
                 summary["attendance_percentage"],
             ])
 
-        return excel_response(headers, rows, f"weekly-attendance-report-{week}.xls")
+        return excel_response(
+            headers,
+            rows,
+            f"weekly-attendance-report-{week}.xls",
+            "Weekly Attendance Report",
+            f"Week: {week} | Period: {week_start} to {week_end}",
+        )
 
     if period == "monthly":
         today = date.today()
@@ -1086,7 +1152,10 @@ def daily_attendance_trend(
     )
 
     if shift != "all":
-        employees_query = employees_query.filter(Employee.shift == shift)
+        if shift == "morning":
+            employees_query = employees_query.filter(Employee.shift.in_(["morning", "day"]))
+        else:
+            employees_query = employees_query.filter(Employee.shift == shift)
     if role != "all":
         employees_query = employees_query.filter(Employee.role == role)
     if employee_id:

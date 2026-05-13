@@ -26,18 +26,47 @@
         <span class="badge" id="todayStatus">Loading</span>
     </div>
 
-    <div class="card profile-card">
-        <h3>Profile</h3>
-        <img class="profile-photo" id="profilePhoto" alt="Profile photo">
-        <div class="profile-name" id="name">-</div>
-        <p id="email">-</p>
-        <p id="employeeId">Employee ID: -</p>
-        <p id="role">Role: -</p>
-        <p id="shift">Shift: -</p>
-        <p id="employmentType">Employment Type: -</p>
-        <label>Profile Photo</label>
-        <input type="file" id="profilePhotoInput" accept="image/*">
-        <button onclick="uploadProfilePhoto()">Upload Photo</button>
+    <div class="card profile-card profile-overview-card">
+        <div class="profile-hero">
+            <div class="profile-photo-frame">
+                <img class="profile-photo" id="profilePhoto" alt="Profile photo">
+            </div>
+            <div class="profile-identity">
+                <span class="profile-kicker">Employee Profile</span>
+                <div class="profile-name" id="name">-</div>
+                <p id="email">-</p>
+            </div>
+        </div>
+
+        <div class="profile-detail-grid">
+            <div class="profile-detail">
+                <span>Employee ID</span>
+                <strong id="employeeId">Employee ID: -</strong>
+            </div>
+            <div class="profile-detail">
+                <span>Role</span>
+                <strong id="role">Role: -</strong>
+            </div>
+            <div class="profile-detail">
+                <span>Shift</span>
+                <strong id="shift">Shift: -</strong>
+            </div>
+            <div class="profile-detail">
+                <span>Employment Type</span>
+                <strong id="employmentType">Employment Type: -</strong>
+            </div>
+        </div>
+
+        <div class="profile-upload-panel">
+            <div>
+                <h3>Profile Photo</h3>
+                <p class="muted">Keep your account image current for attendance and admin views.</p>
+            </div>
+            <div class="profile-upload-actions">
+                <input type="file" id="profilePhotoInput" accept="image/*">
+                <button onclick="uploadProfilePhoto()">Upload Photo</button>
+            </div>
+        </div>
     </div>
 
     <div class="card status-list">

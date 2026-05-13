@@ -1,5 +1,6 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
+const DEFAULT_PROFILE_PHOTO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%23d8f6f2'/%3E%3Cstop offset='1' stop-color='%23e8edff'/%3E%3C/linearGradient%3E%3ClinearGradient id='body' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%230b7a75'/%3E%3Cstop offset='1' stop-color='%233157d5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='128' fill='url(%23bg)'/%3E%3Ccircle cx='256' cy='190' r='92' fill='%23ffffff' opacity='.95'/%3E%3Ccircle cx='256' cy='176' r='74' fill='url(%23body)'/%3E%3Cpath d='M92 452c18-104 85-154 164-154s146 50 164 154' fill='url(%23body)'/%3E%3C/svg%3E";
 
 if (!token) {
     window.location.href = "login.html";
@@ -126,21 +127,23 @@ async function loadAttendance() {
         const rows = document.getElementById("name") ? data.slice(0, 8) : data;
 
         rows.forEach(record => {
-            const active = !record.logout_time;
+            const active = Boolean(record.login_time && !record.logout_time);
+            const holiday = record.status === "Holiday";
 
             table.innerHTML += `
                 <tr>
                     <td>${record.date}</td>
+                    <td>${attendanceStatusBadge(record)}</td>
                     <td>${formatDateTime(record.login_time)}</td>
                     <td>${active ? badge("In progress", "warning") : formatDateTime(record.logout_time)}</td>
                     <td>${formatDuration(record.total_hours)}</td>
-                    <td>${record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
-                    <td>${active ? "-" : yesNo(record.left_early)}</td>
+                    <td>${holiday ? "-" : record.is_late ? badge(`${record.late_minutes || 0} min`, "warning") : badge("No", "success")}</td>
+                    <td>${holiday || active ? "-" : yesNo(record.left_early)}</td>
                 </tr>
             `;
         });
 
-        emptyTable(table, 6);
+        emptyTable(table, 7);
     } catch (error) {
         alert(error.message);
     }
@@ -149,10 +152,10 @@ async function loadAttendance() {
 async function applyLeave() {
     const start_date = getValue("startDate");
     const end_date = getValue("endDate");
-    const reason = getValue("reason");
+    const reason = getValue("reason") || "Leave request";
 
-    if (!start_date || !end_date || !reason) {
-        alert("Please fill all leave fields");
+    if (!start_date || !end_date) {
+        alert("Please select leave dates");
         return;
     }
 
@@ -162,7 +165,8 @@ async function applyLeave() {
             body: JSON.stringify({ start_date, end_date, reason })
         });
 
-        alert(`${data.message}. Total days: ${data.total_days}`);
+        const warning = data.balance_warning ? `\n\nBalance warning: ${data.balance_warning}` : "";
+        alert(`${data.message}. Total days: ${data.total_days}${warning}`);
         setValue("startDate", "");
         setValue("endDate", "");
         setValue("reason", "");
@@ -255,7 +259,9 @@ function setProfilePhoto(path) {
     const image = document.getElementById("profilePhoto");
     if (!image) return;
 
-    image.src = path ? `${API_BASE}${path}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23d8f6f2'/%3E%3Ccircle cx='60' cy='44' r='24' fill='%230b7a75'/%3E%3Cpath d='M20 110c6-28 26-42 40-42s34 14 40 42' fill='%233157d5'/%3E%3C/svg%3E";
+    image.decoding = "async";
+    image.loading = "eager";
+    image.src = path ? `${API_BASE}${path}` : DEFAULT_PROFILE_PHOTO;
 }
 
 async function loadSummary() {
@@ -329,9 +335,14 @@ function formatDayCount(value) {
 
 function statusClass(status) {
     if (status === "Present" || status === "Working (Punched In)") return "success";
-    if (status === "On Leave" || status === "Not Marked" || status === "Joined Today - Work Starts Tomorrow") return "warning";
-    if (status === "Pending Assignment" || status === "Shift Not Started") return "neutral";
+    if (status === "On Leave" || status === "Leave" || status === "Not Marked" || status === "Joined Today - Work Starts Tomorrow") return "warning";
+    if (status === "Pending Assignment" || status === "Shift Not Started" || status === "No Attendance" || status === "Holiday" || status === "Extra Work") return "neutral";
     return "danger";
+}
+
+function attendanceStatusBadge(record) {
+    const status = record.status || (record.login_time ? "Present" : "-");
+    return status === "-" ? "-" : badge(status, statusClass(status));
 }
 
 function setStatusBadge(id, status) {

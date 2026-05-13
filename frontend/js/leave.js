@@ -1,5 +1,5 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
 
 if (!token) {
     window.location.href = "login.html";
@@ -54,10 +54,10 @@ async function redirectSuperAdminLeavePage() {
 async function applyLeave() {
     const start_date = getValue("startDate");
     const end_date = getValue("endDate");
-    const reason = getValue("reason");
+    const reason = getValue("reason") || "Leave request";
 
-    if (!start_date || !end_date || !reason) {
-        alert("Please fill all fields");
+    if (!start_date || !end_date) {
+        alert("Please select leave dates");
         return;
     }
 
@@ -67,7 +67,8 @@ async function applyLeave() {
             body: JSON.stringify({ start_date, end_date, reason })
         });
 
-        alert(`${data.message}. Total days: ${data.total_days}`);
+        const warning = data.balance_warning ? `\n\nBalance warning: ${data.balance_warning}` : "";
+        alert(`${data.message}. Total days: ${data.total_days}${warning}`);
         setValue("startDate", "");
         setValue("endDate", "");
         setValue("reason", "");

@@ -1,19 +1,23 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8001";
 
 if (!token) {
     window.location.href = "login.html";
 }
 
 let payrollEmployees = [];
+let payrollCurrentUser = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     setDefaultPayrollPeriod();
 
     if (document.getElementById("salaryEmployee")) {
+        await loadPayrollCurrentUser();
         await loadPayrollEmployees();
         await loadSalaryHistory();
-        await loadPayrollMonth();
+        await loadAllAssignedSalaries();
+        await loadAllPayrollRecords();
+        await loadPayrollHistory();
     }
 
     if (document.getElementById("myPayrollTable")) {
@@ -38,23 +42,47 @@ async function apiRequest(path, options = {}) {
     return data;
 }
 
+async function loadPayrollCurrentUser() {
+    try {
+        payrollCurrentUser = await apiRequest("/employee/dashboard");
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 async function loadPayrollEmployees() {
     try {
         payrollEmployees = await apiRequest("/admin/employees");
         const salarySelect = document.getElementById("salaryEmployee");
         const payrollSelect = document.getElementById("payrollEmployee");
 
-        const options = payrollEmployees
-            .filter(emp => emp.role !== "super_admin")
+        const canProcessAll = payrollCurrentUser?.role === "super_admin";
+        const processableEmployees = payrollEmployees
+            .filter(emp => canProcessAll || emp.role !== "super_admin")
+            .filter(emp => canProcessAll || Number(emp.id) !== Number(payrollCurrentUser?.employee_id));
+        const salaryEmployees = payrollEmployees.filter(emp => {
+            if (emp.employment_type === "intern" && Number(emp.intern_months || 0) < 3) {
+                return false;
+            }
+            if (payrollCurrentUser?.role === "super_admin") {
+                return emp.role === "admin";
+            }
+            return emp.role !== "admin" && emp.role !== "super_admin";
+        });
+
+        const salaryOptions = salaryEmployees
+            .map(emp => `<option value="${emp.id}">${emp.employee_code || emp.id} - ${emp.name}</option>`)
+            .join("");
+        const payrollOptions = processableEmployees
             .map(emp => `<option value="${emp.id}">${emp.employee_code || emp.id} - ${emp.name}</option>`)
             .join("");
 
         if (salarySelect) {
-            salarySelect.innerHTML = options || `<option value="">No employees</option>`;
+            salarySelect.innerHTML = salaryOptions || `<option value="">No employees</option>`;
         }
 
         if (payrollSelect) {
-            payrollSelect.innerHTML = `<option value="">All Employees</option>${options}`;
+            payrollSelect.innerHTML = `<option value="">All Employees</option>${payrollOptions}`;
         }
     } catch (error) {
         alert(error.message);
@@ -76,6 +104,7 @@ async function assignSalary() {
         hra: numberValue("hra"),
         travel_allowance: numberValue("travelAllowance"),
         medical_allowance: numberValue("medicalAllowance"),
+        special_allowance: numberValue("specialAllowance"),
         effective_from
     };
 
@@ -91,7 +120,8 @@ async function assignSalary() {
         });
         alert("Salary assigned successfully");
         clearSalaryForm(false);
-        loadSalaryHistory();
+        await loadSalaryHistory();
+        await loadAllAssignedSalaries();
     } catch (error) {
         alert(error.message);
     }
@@ -114,13 +144,47 @@ async function loadSalaryHistory() {
                     <td>${formatMoney(item.hra)}</td>
                     <td>${formatMoney(item.travel_allowance)}</td>
                     <td>${formatMoney(item.medical_allowance)}</td>
+                    <td>${formatMoney(item.special_allowance)}</td>
+                    <td>${formatMoney(item.total_salary)}</td>
                     <td>${item.is_active ? badge("Active", "success") : badge("Old", "neutral")}</td>
                 </tr>
             `;
         });
 
         setText("salaryHistoryCount", `${rows.length} Records`);
-        emptyTable(table, 6);
+        emptyTable(table, 8);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadAllAssignedSalaries() {
+    const table = document.getElementById("allSalaryTable");
+    if (!table) return;
+
+    try {
+        const rows = await apiRequest("/payroll/salary");
+        table.innerHTML = "";
+
+        rows.forEach(item => {
+            table.innerHTML += `
+                <tr>
+                    <td>${item.employee_name}<br><span class="muted">${item.employee_code || item.employee_id}</span></td>
+                    <td>${formatLabel(item.role)}</td>
+                    <td>${item.effective_from}</td>
+                    <td>${formatMoney(item.basic_salary)}</td>
+                    <td>${formatMoney(item.hra)}</td>
+                    <td>${formatMoney(item.travel_allowance)}</td>
+                    <td>${formatMoney(item.medical_allowance)}</td>
+                    <td>${formatMoney(item.special_allowance)}</td>
+                    <td>${formatMoney(item.total_salary)}</td>
+                    <td>${item.is_active ? badge("Active", "success") : badge("Old", "neutral")}</td>
+                </tr>
+            `;
+        });
+
+        setText("allSalaryCount", `${rows.length} Records`);
+        emptyTable(table, 10);
     } catch (error) {
         alert(error.message);
     }
@@ -133,6 +197,15 @@ async function processPayroll() {
 
     if (!month || !year) {
         alert("Enter payroll month and year");
+        return;
+    }
+
+    if (
+        payrollCurrentUser?.role === "admin"
+        && employee_id
+        && Number(employee_id) === Number(payrollCurrentUser.employee_id)
+    ) {
+        alert("Admins cannot process payroll for themselves");
         return;
     }
 
@@ -153,6 +226,7 @@ async function processPayroll() {
         });
         alert(`Payroll processed for ${rows.length} employee(s)`);
         renderPayrollRows(rows, "payrollTable", "payrollCount");
+        await loadPayrollHistory();
     } catch (error) {
         alert(error.message);
     }
@@ -166,6 +240,51 @@ async function loadPayrollMonth() {
     try {
         const rows = await apiRequest(`/payroll/month?month=${month}&year=${year}`);
         renderPayrollRows(rows, "payrollTable", "payrollCount");
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadAllPayrollRecords() {
+    const table = document.getElementById("payrollTable");
+    if (!table) return;
+
+    try {
+        const rows = await apiRequest("/payroll/history?start_month=1&end_month=4&year=2026");
+        renderPayrollRows(rows, "payrollTable", "payrollCount");
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadPayrollHistory() {
+    const table = document.getElementById("payrollHistoryTable");
+    if (!table) return;
+
+    try {
+        const rows = await apiRequest("/payroll/history?start_month=1&end_month=4&year=2026");
+        table.innerHTML = "";
+
+        rows.forEach(item => {
+            table.innerHTML += `
+                <tr>
+                    <td>${item.employee_name}<br><span class="muted">${item.employee_code || item.employee_id}</span></td>
+                    <td>${formatLabel(item.role)}</td>
+                    <td>${pad2(item.month)}-${item.year}</td>
+                    <td>${item.total_days}</td>
+                    <td>${item.present_days}</td>
+                    <td>${item.leave_days}</td>
+                    <td>${item.absent_days}</td>
+                    <td>${formatMoney(item.gross_salary)}</td>
+                    <td>${formatMoney(item.total_deductions)}</td>
+                    <td>${formatMoney(item.net_salary)}</td>
+                    <td>${formatDateTime(item.processed_at)}</td>
+                </tr>
+            `;
+        });
+
+        setText("payrollHistoryCount", `${rows.length} Records`);
+        emptyTable(table, 11);
     } catch (error) {
         alert(error.message);
     }
@@ -261,10 +380,9 @@ async function downloadPayslip(payrollId) {
 }
 
 function setDefaultPayrollPeriod() {
-    const now = new Date();
-    setValue("salaryEffectiveFrom", formatInputDate(now));
-    setValue("payrollMonth", now.getMonth() + 1);
-    setValue("payrollYear", now.getFullYear());
+    setValue("salaryEffectiveFrom", formatInputDate(new Date()));
+    setValue("payrollMonth", 1);
+    setValue("payrollYear", 2026);
 }
 
 function clearSalaryForm(clearEmployee = true) {
@@ -273,6 +391,7 @@ function clearSalaryForm(clearEmployee = true) {
     setValue("hra", "");
     setValue("travelAllowance", "");
     setValue("medicalAllowance", "");
+    setValue("specialAllowance", "");
 }
 
 function employeeLabel(employeeId) {
@@ -286,6 +405,10 @@ function formatMoney(value) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
+}
+
+function formatLabel(value) {
+    return value ? String(value).replaceAll("_", " ") : "-";
 }
 
 function formatDateTime(value) {

@@ -33,18 +33,47 @@
         <span class="badge success" id="adminTodayStatus">Admin</span>
     </div>
 
-    <div class="card profile-card">
-        <h3>Admin Profile</h3>
-        <img class="profile-photo" id="profilePhoto" alt="Profile photo">
-        <div class="profile-name" id="adminName">-</div>
-        <p id="adminEmail">-</p>
-        <p id="adminId">Admin ID: -</p>
-        <p id="adminRole">Role: -</p>
-        <p id="adminShift">Shift: -</p>
-        <p id="adminEmploymentType">Employment Type: -</p>
-        <label>Profile Photo</label>
-        <input type="file" id="profilePhotoInput" accept="image/*">
-        <button onclick="uploadProfilePhoto()">Upload Photo</button>
+    <div class="card profile-card profile-overview-card">
+        <div class="profile-hero">
+            <div class="profile-photo-frame">
+                <img class="profile-photo" id="profilePhoto" alt="Profile photo">
+            </div>
+            <div class="profile-identity">
+                <span class="profile-kicker">Admin Profile</span>
+                <div class="profile-name" id="adminName">-</div>
+                <p id="adminEmail">-</p>
+            </div>
+        </div>
+
+        <div class="profile-detail-grid">
+            <div class="profile-detail">
+                <span>Admin ID</span>
+                <strong id="adminId">Admin ID: -</strong>
+            </div>
+            <div class="profile-detail">
+                <span>Role</span>
+                <strong id="adminRole">Role: -</strong>
+            </div>
+            <div class="profile-detail">
+                <span>Shift</span>
+                <strong id="adminShift">Shift: -</strong>
+            </div>
+            <div class="profile-detail">
+                <span>Employment Type</span>
+                <strong id="adminEmploymentType">Employment Type: -</strong>
+            </div>
+        </div>
+
+        <div class="profile-upload-panel">
+            <div>
+                <h3>Profile Photo</h3>
+                <p class="muted">Keep your account image current for attendance and admin views.</p>
+            </div>
+            <div class="profile-upload-actions">
+                <input type="file" id="profilePhotoInput" accept="image/*">
+                <button onclick="uploadProfilePhoto()">Upload Photo</button>
+            </div>
+        </div>
     </div>
 
     <div class="card status-list">
@@ -104,6 +133,7 @@
                 <thead>
                     <tr>
                         <th>Date</th>
+                        <th>Status</th>
                         <th>Login Time</th>
                         <th>Logout Time</th>
                         <th>Total Hours</th>

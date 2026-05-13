@@ -32,17 +32,26 @@
         </div>
     </div>
 
-    <div class="dashboard-grid three-columns">
-        <div class="card status-list">
-            <h3>Who Is Present Today</h3>
+    <div class="dashboard-grid three-columns today-status-grid">
+        <div class="card status-list today-status-card present-card">
+            <div class="section-heading">
+                <h3>Who Is Present Today</h3>
+                <span class="badge success" id="presentListCount">0</span>
+            </div>
             <ul id="presentList"></ul>
         </div>
-        <div class="card status-list">
-            <h3>Who Is Absent Today</h3>
+        <div class="card status-list today-status-card absent-card">
+            <div class="section-heading">
+                <h3>Who Is Absent Today</h3>
+                <span class="badge danger" id="absentListCount">0</span>
+            </div>
             <ul id="absentList"></ul>
         </div>
-        <div class="card status-list">
-            <h3>Who Is On Leave Today</h3>
+        <div class="card status-list today-status-card leave-card">
+            <div class="section-heading">
+                <h3>Who Is On Leave Today</h3>
+                <span class="badge warning" id="leaveListCount">0</span>
+            </div>
             <ul id="leaveList"></ul>
         </div>
     </div>

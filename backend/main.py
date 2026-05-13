@@ -26,6 +26,46 @@ def upgrade_existing_schema():
         connection.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS employment_type VARCHAR DEFAULT 'full_time'"))
         connection.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS intern_months INTEGER"))
         connection.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS profile_photo VARCHAR"))
+        connection.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS department VARCHAR"))
+        connection.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'Present'"))
+        connection.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS working_hours DOUBLE PRECISION DEFAULT 0"))
+        connection.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS late_minutes INTEGER DEFAULT 0"))
+        connection.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS early_minutes INTEGER DEFAULT 0"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS leave_date DATE"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS leave_type VARCHAR"))
+        connection.execute(text("""
+            UPDATE attendance
+            SET status = 'Present'
+            WHERE status IS NULL
+        """))
+        connection.execute(text("""
+            UPDATE leaves
+            SET leave_date = start_date
+            WHERE leave_date IS NULL
+              AND start_date IS NOT NULL
+        """))
+        connection.execute(text("""
+            UPDATE attendance
+            SET working_hours = EXTRACT(EPOCH FROM total_hours) / 3600
+            WHERE working_hours IS NULL
+              AND total_hours IS NOT NULL
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_attendance_date_status
+            ON attendance(date, status)
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_attendance_employee_date
+            ON attendance(employee_id, date)
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_attendance_month_status
+            ON attendance((EXTRACT(YEAR FROM date)), (EXTRACT(MONTH FROM date)), status)
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_employees_department
+            ON employees(department)
+        """))
         connection.execute(text("""
             UPDATE employees
             SET employment_type = 'full_time'
@@ -96,6 +136,7 @@ def upgrade_existing_schema():
                 travel_allowance NUMERIC(12, 2) NOT NULL DEFAULT 0,
                 medical_allowance NUMERIC(12, 2) NOT NULL DEFAULT 0,
                 special_allowance NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                total_salary NUMERIC(12, 2) NOT NULL DEFAULT 0,
                 effective_from DATE NOT NULL,
                 created_by INTEGER REFERENCES employees(id),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -107,10 +148,17 @@ def upgrade_existing_schema():
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS travel_allowance NUMERIC(12, 2) NOT NULL DEFAULT 0"))
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS medical_allowance NUMERIC(12, 2) NOT NULL DEFAULT 0"))
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS special_allowance NUMERIC(12, 2) NOT NULL DEFAULT 0"))
+        connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS total_salary NUMERIC(12, 2) NOT NULL DEFAULT 0"))
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS effective_from DATE NOT NULL DEFAULT CURRENT_DATE"))
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES employees(id)"))
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
         connection.execute(text("ALTER TABLE salary_structure ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"))
+        connection.execute(text("""
+            UPDATE salary_structure
+            SET total_salary = basic_salary + hra + travel_allowance + medical_allowance + special_allowance
+            WHERE total_salary IS NULL
+               OR total_salary = 0
+        """))
         connection.execute(text("""
             CREATE INDEX IF NOT EXISTS ix_salary_structure_employee_effective
             ON salary_structure(employee_id, effective_from DESC)

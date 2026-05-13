@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from attendance_logic import employee_leave_balance, employee_monthly_summary, employee_shift_date_status, employee_work_start_date, is_working_day, working_leave_days
+from attendance_logic import employee_leave_balance, employee_monthly_summary, employee_shift_date_status, employee_work_start_date, internship_end_date, is_working_day, working_leave_days
 from database import SessionLocal
 from deps import get_current_user
 from models import Attendance, Employee, Leave
@@ -37,12 +37,15 @@ def employee_dashboard(
         for leave in approved_leaves
     )
 
-    joined_at = current_user.joined_at or date(2026, 5, 1)
+    joined_at = current_user.joined_at or date(2026, 1, 1)
     work_start_date = employee_work_start_date(current_user)
-    attendance_records = db.query(Attendance).filter(
+    attendance_query = db.query(Attendance).filter(
         Attendance.employee_id == current_user.id,
         Attendance.date >= work_start_date,
-    ).all()
+    )
+    if end_date := internship_end_date(current_user):
+        attendance_query = attendance_query.filter(Attendance.date <= end_date)
+    attendance_records = attendance_query.all()
     total_attendance_days = sum(1 for record in attendance_records if is_working_day(record.date))
 
     today_status = employee_shift_date_status(db, current_user, today)

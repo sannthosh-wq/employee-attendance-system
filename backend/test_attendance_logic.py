@@ -11,12 +11,16 @@ from attendance_logic import (
     JOINED_TODAY_STATUS,
     active_attendance_for_punch_out,
     attendance_day_credit,
+    employee_monthly_summary,
+    employee_work_start_date,
     employee_shift_date_status,
     get_shift_window,
     get_shift_window_for_date,
     is_working_day,
     leave_allowance,
+    working_leave_days,
 )
+from attendance import attendance_history_status
 from payroll_service import payroll_components
 
 
@@ -95,6 +99,24 @@ class ShiftWindowTests(unittest.TestCase):
         self.assertFalse(is_working_day(date(2026, 5, 10)))
         self.assertTrue(is_working_day(date(2026, 5, 11)))
 
+    def test_sunday_without_punches_is_holiday_in_history(self):
+        record = SimpleNamespace(
+            date=date(2026, 5, 10),
+            login_time=None,
+            status="Absent",
+        )
+
+        self.assertEqual(attendance_history_status(record, record.date, has_punches=False), "Holiday")
+
+    def test_sunday_with_punches_is_extra_work_in_history(self):
+        record = SimpleNamespace(
+            date=date(2026, 5, 10),
+            login_time=datetime(2026, 5, 10, 9, 0),
+            status="Present",
+        )
+
+        self.assertEqual(attendance_history_status(record, record.date, has_punches=True), "Extra Work")
+
     def test_sunday_attendance_is_extra_work_not_present(self):
         db = AttendanceQueryStub()
         employee = SimpleNamespace(
@@ -131,7 +153,15 @@ class ShiftWindowTests(unittest.TestCase):
 
         self.assertEqual(status, JOINED_TODAY_STATUS)
 
-    def test_existing_employee_before_policy_keeps_join_day_attendance(self):
+    def test_joining_date_is_not_counted_for_employee(self):
+        employee = SimpleNamespace(
+            role="employee",
+            joined_at=date(2026, 5, 1),
+        )
+
+        self.assertEqual(employee_work_start_date(employee), date(2026, 5, 2))
+
+    def test_existing_employee_after_join_date_keeps_attendance(self):
         db = AttendanceQueryStub()
         employee = SimpleNamespace(
             id=1,
@@ -183,6 +213,19 @@ class ShiftWindowTests(unittest.TestCase):
 
         self.assertEqual(leave_allowance(employee, month=5, year=2026), 3)
 
+    def test_leave_days_skip_sundays(self):
+        self.assertEqual(working_leave_days(date(2026, 5, 10), date(2026, 5, 10)), 0)
+        self.assertEqual(working_leave_days(date(2026, 5, 9), date(2026, 5, 11)), 2)
+
+    def test_monthly_summary_allows_seeded_january_data(self):
+        db = MonthlySummaryQueryStub()
+
+        summary = employee_monthly_summary(db, employee_id=1, month=1, year=2026)
+
+        self.assertTrue(summary["has_data"])
+        self.assertIsNone(summary["message"])
+        self.assertGreater(summary["working_days"], 0)
+
     def test_payroll_components_calculate_net_salary(self):
         salary = SimpleNamespace(
             basic_salary=Decimal("30000"),
@@ -218,20 +261,24 @@ class QueryStub:
 
 class AttendanceQueryStub(QueryStub):
     def __init__(self):
-        self.calls = 0
+        self.model_name = None
 
-    def query(self, *args, **kwargs):
-        self.calls += 1
+    def query(self, model, *args, **kwargs):
+        self.model_name = getattr(model, "__name__", None)
         return self
 
     def first(self):
-        if self.calls == 1:
+        if self.model_name == "Leave":
             return None
 
-        return SimpleNamespace(
-            id=1,
-            login_time=datetime(2026, 5, 10, 9, 0),
-        )
+        if self.model_name == "Attendance":
+            return SimpleNamespace(
+                id=1,
+                status="Present",
+                login_time=datetime(2026, 5, 10, 9, 0),
+            )
+
+        return None
 
 
 class PunchOutQueryStub(QueryStub):
@@ -255,6 +302,32 @@ class PunchOutQueryStub(QueryStub):
 
         if self.model_name == "AttendancePunch":
             return SimpleNamespace(punch_type="in")
+
+        return None
+
+
+class MonthlySummaryQueryStub(QueryStub):
+    def __init__(self):
+        self.model_name = None
+
+    def query(self, model, *args, **kwargs):
+        self.model_name = getattr(model, "__name__", "AttendanceDate")
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+    def all(self):
+        return []
+
+    def first(self):
+        if self.model_name == "Employee":
+            return SimpleNamespace(
+                id=1,
+                role="employee",
+                shift="morning",
+                joined_at=date(2026, 1, 1),
+            )
 
         return None
 
