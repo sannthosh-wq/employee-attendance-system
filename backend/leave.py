@@ -13,6 +13,9 @@ router = APIRouter(
     prefix="/leave",
     tags=["Leave"]
 )
+public_router = APIRouter(tags=["Leave"])
+
+VALID_LEAVE_TYPES = {"Casual", "Sick", "Earned", "Emergency"}
 
 # ---------------- DB ----------------
 def get_db():
@@ -116,6 +119,7 @@ def can_update_leave(current_user, leave_owner, db: Session):
 
 
 # ---------------- APPLY LEAVE (NON-ADMIN ONLY) ----------------
+@public_router.post("/apply-leave")
 @router.post("/apply")
 def apply_leave(
     leave_data: LeaveCreateSchema,
@@ -124,18 +128,34 @@ def apply_leave(
 ):
 
     require_leave_applicant(current_user)
-    start_date = leave_data.start_date
-    end_date = leave_data.end_date
-    reason = leave_data.reason.strip() or "Leave request"
+    start_date = leave_data.from_date or leave_data.start_date
+    end_date = leave_data.to_date or leave_data.end_date
+    leave_type = (leave_data.leave_type or "Casual").strip()
+    reason = leave_data.reason.strip()
+    custom_reason = leave_data.custom_reason.strip() if leave_data.custom_reason else None
+    additional_comments = leave_data.additional_comments.strip() if leave_data.additional_comments else None
+
+    if not start_date or not end_date:
+        raise HTTPException(status_code=400, detail="From Date and To Date are required")
+
+    if leave_type not in VALID_LEAVE_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid leave type")
+
+    if not reason:
+        raise HTTPException(status_code=400, detail="Leave reason is required")
+
+    if reason == "Other" and not custom_reason:
+        raise HTTPException(status_code=400, detail="Custom reason is required when Other is selected")
 
     if end_date < start_date:
-        start_date, end_date = end_date, start_date
+        raise HTTPException(status_code=400, detail="From Date cannot be greater than To Date")
+
+    if start_date < date.today() or end_date < date.today():
+        raise HTTPException(status_code=400, detail="Leave cannot be applied for past dates")
 
     total_days = working_leave_days(start_date, end_date)
 
     warnings = leave_balance_warnings(db, current_user.id, start_date, end_date)
-    if start_date < date.today():
-        warnings.append("This request includes a past date and will need admin review")
     if total_days <= 0:
         warnings.append("This request only includes holidays and will need admin review")
 
@@ -162,8 +182,13 @@ def apply_leave(
         employee_id=current_user.id,
         start_date=start_date,
         end_date=end_date,
+        from_date=start_date,
+        to_date=end_date,
         leave_date=start_date,
+        leave_type=leave_type,
         reason=reason,
+        custom_reason=custom_reason,
+        additional_comments=additional_comments,
         status="pending"
     )
 
@@ -172,7 +197,7 @@ def apply_leave(
     notify_admins(
         db,
         "New leave request",
-        f"{current_user.name} requested {total_days} leave day(s) from {start_date} to {end_date}.",
+        f"{current_user.name} requested {total_days} {leave_type.lower()} leave day(s) from {start_date} to {end_date}.",
         "leave_request",
         current_user.id,
     )
@@ -251,10 +276,16 @@ def all_leaves(
             "employment_type": employee.employment_type,
             "start_date": leave.start_date,
             "end_date": leave.end_date,
+            "from_date": leave.from_date,
+            "to_date": leave.to_date,
             "total_days": working_leave_days(leave.start_date, leave.end_date),
             "leave_balance": employee_leave_balance(db, employee.id),
+            "leave_type": leave.leave_type,
             "reason": leave.reason,
+            "custom_reason": leave.custom_reason,
+            "additional_comments": leave.additional_comments,
             "status": leave.status,
+            "applied_at": leave.applied_at,
         }
         for leave, employee in query.order_by(Leave.id.desc()).all()
     ]

@@ -4,7 +4,7 @@
     <title>My Payroll</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="employee-page payroll-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -20,7 +20,7 @@
 
 <div class="main-content">
     <div class="dashboard">
-        <div class="page-header">
+        <div class="page-header employee-page-header payroll-header">
             <div>
                 <h1>My Payroll</h1>
                 <p>View processed salaries and download monthly payslips.</p>
@@ -28,7 +28,16 @@
             <span class="badge success" id="payrollStatus">Payroll</span>
         </div>
 
-        <div class="cards">
+        <div class="payroll-trust-panel">
+            <div>
+                <span class="profile-kicker">Company Payroll</span>
+                <h3>Official Salary Records</h3>
+                <p>Download company-issued payslips for processed payroll periods.</p>
+            </div>
+            <span class="badge success">Confidential</span>
+        </div>
+
+        <div class="cards payroll-kpis">
             <div class="card kpi">
                 <h3>Latest Net Salary</h3>
                 <p id="latestNetSalary">0</p>
@@ -47,7 +56,7 @@
             </div>
         </div>
 
-        <div class="card table-card">
+        <div class="card table-card employee-table-card payroll-record-card">
             <div class="section-heading">
                 <h3>Payroll Records</h3>
                 <span class="badge" id="myPayrollCount">0 Records</span>

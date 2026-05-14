@@ -4,7 +4,7 @@
     <title>Monthly Attendance Summary</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="employee-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -14,19 +14,20 @@
     <a href="attendance.html">Employee Attendance History</a>
     <a href="leave.html">Employee Apply Leave</a>
     <a href="monthly-summary.html" class="active">Monthly Attendance Summary</a>
+    <a href="employee-payroll.html">My Payroll</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
 <div class="main-content">
     <div class="dashboard">
-        <div class="page-header">
+        <div class="page-header employee-page-header">
             <div>
                 <h1>Monthly Attendance Summary</h1>
                 <p>View your monthly attendance totals.</p>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card employee-service-card">
             <div class="form-grid">
                 <div>
                     <label>Select Month</label>
@@ -41,7 +42,7 @@
             <button onclick="loadSummary()">Get Summary</button>
         </div>
 
-        <div class="card">
+        <div class="card summary-card">
             <h3>Summary Details</h3>
             <div class="summary-list">
                 <p><strong>Working Days:</strong> <span id="workingDays">0</span></p>

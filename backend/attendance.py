@@ -19,6 +19,7 @@ from attendance_logic import (
     is_working_day,
     latest_punch,
     late_minutes,
+    mark_missed_shift_absent,
     require_assignment_complete,
 )
 
@@ -146,6 +147,43 @@ def punch_in(
 
     last_punch = latest_punch(db, record.id)
 
+    if not record.login_time and record.status == "Absent":
+        is_late = now > grace_time
+
+        record.login_time = now
+        record.logout_time = None
+        record.total_hours = timedelta()
+        record.status = "Present"
+        record.is_late = is_late
+        record.left_early = False
+        record.late_minutes = 0
+        record.early_minutes = 0
+        record.working_hours = 0
+
+        db.add(AttendancePunch(
+            attendance_id=record.id,
+            employee_id=current_user.id,
+            punch_type="in",
+            punch_time=now
+        ))
+
+        attendance_credit = attendance_day_credit(record, current_user.shift)
+        half_day_deducted = attendance_credit == 0.5
+        message = "Punch in successful"
+
+        if half_day_deducted:
+            message = "Punch in successful. Half day attendance is deducted because you punched in more than 3 hours after shift start"
+
+        db.commit()
+
+        return {
+            "message": message,
+            "is_late": is_late,
+            "attendance_credit": attendance_credit,
+            "half_day_deducted": half_day_deducted,
+            "type": "attendance_start"
+        }
+
     if last_punch and last_punch.punch_type == "in":
         raise HTTPException(status_code=400, detail="Already punched in")
 
@@ -235,6 +273,16 @@ def my_attendance(
 
     if end_date < start_date:
         return []
+
+    current = start_date
+    created_absences = 0
+    while current <= end_date:
+        if mark_missed_shift_absent(db, current_user, current):
+            created_absences += 1
+        current += timedelta(days=1)
+
+    if created_absences:
+        db.commit()
 
     records = (
         db.query(Attendance)

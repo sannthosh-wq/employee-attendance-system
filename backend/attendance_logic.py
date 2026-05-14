@@ -373,6 +373,76 @@ def approved_leave_on(db: Session, employee_id: int, target_date: date):
     )
 
 
+def should_mark_missed_shift_absent(
+    db: Session,
+    employee,
+    target_date: date,
+    now: datetime | None = None,
+):
+    now = now or datetime.now()
+
+    if not is_assignment_complete(employee):
+        return False
+
+    if is_internship_over(employee, target_date):
+        return False
+
+    if target_date < employee_work_start_date(employee):
+        return False
+
+    if not is_working_day(target_date):
+        return False
+
+    shift_start, _, _ = get_shift_window_for_date(target_date, employee.shift)
+    if now < shift_start:
+        return False
+
+    if approved_leave_on(db, employee.id, target_date):
+        return False
+
+    return get_shift_attendance(db, employee.id, target_date) is None
+
+
+def mark_missed_shift_absent(
+    db: Session,
+    employee,
+    target_date: date,
+    now: datetime | None = None,
+):
+    if not should_mark_missed_shift_absent(db, employee, target_date, now):
+        return None
+
+    record = Attendance(
+        employee_id=employee.id,
+        date=target_date,
+        login_time=None,
+        logout_time=None,
+        total_hours=timedelta(),
+        status="Absent",
+        is_late=False,
+        left_early=False,
+        late_minutes=0,
+        early_minutes=0,
+        working_hours=0,
+    )
+    db.add(record)
+    db.flush()
+    return record
+
+
+def mark_missed_shifts_absent(
+    db: Session,
+    employees,
+    target_date: date,
+    now: datetime | None = None,
+):
+    created = 0
+    for employee in employees:
+        if mark_missed_shift_absent(db, employee, target_date, now):
+            created += 1
+    return created
+
+
 def has_leave_overlap(
     db: Session,
     employee_id: int,
@@ -461,7 +531,7 @@ def employee_shift_date_status(
     if target_date > now.date():
         return "Shift Not Started"
 
-    shift_start, _, _ = get_shift_window_for_date(target_date, employee.shift)
+    shift_start, _, shift_end = get_shift_window_for_date(target_date, employee.shift)
 
     if approved_leave_on(db, employee.id, target_date):
         return "On Leave"
@@ -481,8 +551,9 @@ def employee_shift_date_status(
         if attendance.login_time:
             return "Present"
 
-    if target_date == now.date() and now < shift_start:
-        return "Shift Not Started"
+    if target_date == now.date():
+        if now < shift_start:
+            return "Shift Not Started"
 
     if target_date.weekday() == 6:
         return "Shift Not Started"

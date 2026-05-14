@@ -4,7 +4,7 @@
     <title>Employee Dashboard</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="employee-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -20,7 +20,7 @@
 
 <div class="main-content">
     <div class="dashboard">
-        <div class="page-header">
+        <div class="page-header employee-page-header">
             <div>
                 <h1 id="dashboardTitle">Employee Dashboard</h1>
                 <p id="dashboardSubtitle">Track your profile, attendance, leave, and monthly summary.</p>
@@ -66,12 +66,12 @@
                 </div>
             </div>
 
-            <div class="card action-card" id="punch">
+            <div class="card action-card punch-card" id="punch">
                 <h3>Attendance Action</h3>
                 <p class="muted">Use punch in when you start work and punch out when you finish.</p>
-                <div class="button-row">
-                    <button onclick="punchIn()">Punch In</button>
-                    <button class="secondary" onclick="punchOut()">Punch Out</button>
+                <div class="button-row employee-action-row">
+                    <button class="punch-in-button" onclick="punchIn()">Punch In</button>
+                    <button class="secondary punch-out-button" onclick="punchOut()">Punch Out</button>
                 </div>
             </div>
         </div>
@@ -117,7 +117,7 @@
         </div>
 
         <div class="dashboard-grid two-columns">
-            <div class="card" id="apply-leave">
+            <div class="card employee-service-card" id="apply-leave">
                 <div class="section-heading">
                 <h3 id="applyLeaveTitle">Apply Leave</h3>
                     <a href="leave.html">View all leaves</a>
@@ -131,7 +131,7 @@
                 <button onclick="applyLeave()">Apply Leave</button>
             </div>
 
-            <div class="card" id="monthly-summary">
+            <div class="card employee-service-card" id="monthly-summary">
                 <div class="section-heading">
                     <h3>Monthly Attendance Summary</h3>
                     <a href="monthly-summary.html">Open summary</a>
@@ -157,7 +157,7 @@
             </div>
         </div>
 
-        <div class="card table-card" id="attendance-history">
+        <div class="card table-card employee-table-card" id="attendance-history">
             <div class="section-heading">
                 <h3 id="attendanceHistoryTitle">Employee Attendance History</h3>
                 <a href="attendance.html">Open history</a>

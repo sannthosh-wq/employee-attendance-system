@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 from deps import get_current_user
 from models import Employee, Payroll, SalaryStructure
-from payroll_service import create_salary_revision, process_monthly_payroll, revise_salary_structure
+from payroll_service import create_salary_revision, generate_payslip_pdf, process_monthly_payroll, revise_salary_structure
 from schemas import PayrollProcessSchema, PayrollResponse, SalaryStructureCreateSchema, SalaryStructureResponse, SalaryStructureUpdateSchema
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
@@ -243,8 +243,12 @@ def download_payslip(
 
     can_view_employee_payroll(current_user, payroll.employee_id)
 
-    if not payroll.payslip_path:
-        raise HTTPException(status_code=404, detail="Payslip not generated")
+    employee = db.query(Employee).filter(Employee.id == payroll.employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    payroll.payslip_path = generate_payslip_pdf(employee, payroll)
+    db.commit()
 
     path = payroll.payslip_path.lstrip("/")
     return FileResponse(path, media_type="application/pdf", filename=path.split("/")[-1])

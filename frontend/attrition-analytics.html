@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attrition Analytics</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin-page">
+
+<div class="sidebar">
+    <h2>EMS</h2>
+    <a href="admin.html">Admin Dashboard</a>
+    <a href="admin-profile.html">Admin Profile</a>
+    <a href="admin-punch.html">Admin Punch In / Punch Out</a>
+    <a href="admin-leave.html">Admin Apply Leave</a>
+    <a href="admin-attendance-history.html">Attendance History</a>
+    <a href="all-employee-attendance.html">All Employee Attendance</a>
+    <a href="leave-approval.html">Leave Approval</a>
+    <a href="admin-today-summary.html">Today Summary</a>
+    <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="attrition-analytics.html" class="active">Attrition Analytics</a>
+    <a href="admin-payroll.html">Payroll Management</a>
+    <a href="employee-management.html">Employee Management</a>
+    <a href="today-status.html">Present / Absent / Leave Today</a>
+    <a href="search-employee.html">Search Employee</a>
+    <a href="#" onclick="logout()">Logout</a>
+</div>
+
+<div class="main-content">
+    <div class="dashboard">
+        <div class="page-header">
+            <div>
+                <h1>Attrition Analytics</h1>
+                <p>Predict employee attrition risk using attendance, leave, salary, tenure, and role signals.</p>
+            </div>
+            <span class="badge success" id="attritionModelStatus">Loading</span>
+        </div>
+
+        <div class="attrition-loading" id="attritionLoading">
+            <div class="loading-spinner"></div>
+            <span>Loading predictions</span>
+        </div>
+
+        <div class="cards">
+            <div class="card kpi">
+                <h3>Total Employees</h3>
+                <p id="attritionTotalEmployees">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>High Risk</h3>
+                <p id="attritionHighRisk">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Medium Risk</h3>
+                <p id="attritionMediumRisk">0</p>
+            </div>
+            <div class="card kpi">
+                <h3>Overall Risk</h3>
+                <p id="attritionOverallRisk">0%</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid three-columns">
+            <div class="card chart-box analytics-chart-card">
+                <h3>Risk Distribution</h3>
+                <canvas id="attritionPieChart"></canvas>
+            </div>
+            <div class="card chart-box analytics-chart-card">
+                <h3>Top 5 High Risk Employees</h3>
+                <canvas id="attritionBarChart"></canvas>
+            </div>
+            <div class="card chart-box analytics-chart-card">
+                <h3>Monthly Risk Trend</h3>
+                <canvas id="attritionTrendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="section-heading">
+                <div>
+                    <h3>Risk Table</h3>
+                    <p class="muted">Search by name or filter by risk level.</p>
+                </div>
+                <span class="badge" id="attritionTableCount">0 Rows</span>
+            </div>
+            <div class="form-grid analytics-filter-grid">
+                <div>
+                    <label>Search</label>
+                    <input type="search" id="attritionSearch" placeholder="Employee name, ID, role" oninput="renderAttritionTable()">
+                </div>
+                <div>
+                    <label>Risk Level</label>
+                    <select id="attritionRiskFilter" onchange="renderAttritionTable()">
+                        <option value="all">All Risk Levels</option>
+                        <option value="High Risk">High Risk</option>
+                        <option value="Medium Risk">Medium Risk</option>
+                        <option value="Low Risk">Low Risk</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee Name</th>
+                            <th>Attendance %</th>
+                            <th>Leave Count</th>
+                            <th>Late Count</th>
+                            <th>Risk Score</th>
+                            <th>Risk Level</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attritionTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/attrition.js"></script>
+
+</body>
+</html>
+

@@ -4,7 +4,7 @@
     <title>Attendance Analytics</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="admin-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -17,6 +17,7 @@
     <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html" class="active">Attendance Analytics</a>
+    <a href="attrition-analytics.html">Attrition Analytics</a>
     <a href="admin-payroll.html">Payroll Management</a>
     <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
@@ -150,6 +151,11 @@
                 <button type="button" class="secondary" onclick="downloadAttendanceExcel('weekly')">Weekly Excel</button>
                 <button type="button" class="secondary" onclick="downloadAttendanceExcel('monthly')">Monthly Excel</button>
             </div>
+            <div class="export-actions export-actions-wide person-export-actions">
+                <button type="button" onclick="downloadSelectedEmployeeAttendanceExcel('daily')">Person Daily Excel</button>
+                <button type="button" class="secondary" onclick="downloadSelectedEmployeeAttendanceExcel('weekly')">Person Weekly Excel</button>
+                <button type="button" class="secondary" onclick="downloadSelectedEmployeeAttendanceExcel('monthly')">Person Monthly Excel</button>
+            </div>
         </div>
 
         <div class="analytics-grid">
@@ -282,6 +288,13 @@
                         <tbody id="employeeAnalyticsTable"></tbody>
                     </table>
                 </div>
+                <div class="table-pagination">
+                    <div class="pagination-status" id="employeeAnalyticsPageInfo">Page 1 of 1</div>
+                    <div class="pagination-actions">
+                        <button type="button" class="secondary compact-button" id="employeeAnalyticsPrevBtn" onclick="previousEmployeeAnalyticsPage()">Previous</button>
+                        <button type="button" class="compact-button" id="employeeAnalyticsNextBtn" onclick="nextEmployeeAnalyticsPage()">Next</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -344,3 +357,4 @@
 
 </body>
 </html>
+

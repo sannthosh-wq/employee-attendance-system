@@ -4,7 +4,7 @@
     <title>All Employee Attendance</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="admin-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -17,6 +17,7 @@
     <a href="leave-approval.html">Leave Approval</a>
     <a href="admin-today-summary.html">Today Summary</a>
     <a href="attendance-analytics.html">Attendance Analytics</a>
+    <a href="attrition-analytics.html">Attrition Analytics</a>
     <a href="admin-payroll.html">Payroll Management</a>
     <a href="employee-management.html">Employee Management</a>
     <a href="today-status.html">Present / Absent / Leave Today</a>
@@ -32,17 +33,73 @@
         </div>
     </div>
 
-    <div class="card table-card">
+    <div class="card table-card attendance-records-card">
         <div class="section-heading">
             <div>
                 <h3>Attendance Records</h3>
                 <span class="muted" id="attendanceRecordCount">0 Records</span>
             </div>
-            <div class="attendance-table-controls">
+        </div>
+
+        <div class="attendance-controls-panel">
+            <div class="attendance-control-group">
+                <div class="control-group-title">
+                    <span>Company Exports</span>
+                    <small>Download attendance reports for the selected period.</small>
+                </div>
                 <div class="export-actions">
                     <button type="button" onclick="downloadAttendanceExcel('daily')">Daily Excel</button>
                     <button type="button" class="secondary" onclick="downloadAttendanceExcel('weekly')">Weekly Excel</button>
                     <button type="button" class="secondary" onclick="downloadAttendanceExcel('monthly')">Monthly Excel</button>
+                </div>
+            </div>
+
+            <div class="attendance-control-group person-control-group">
+                <div class="control-group-title">
+                    <span>Person Attendance</span>
+                    <small>Filter to one person, then download their attendance.</small>
+                </div>
+                <div class="export-actions person-export-actions">
+                    <button type="button" onclick="downloadSelectedAttendancePersonExcel('daily')">Person Daily</button>
+                    <button type="button" class="secondary" onclick="downloadSelectedAttendancePersonExcel('weekly')">Person Weekly</button>
+                    <button type="button" class="secondary" onclick="downloadSelectedAttendancePersonExcel('monthly')">Person Monthly</button>
+                </div>
+            </div>
+
+            <div class="attendance-filter-panel">
+                <div class="record-limit-control">
+                    <label>Employee ID</label>
+                    <input type="text" id="attendanceEmployeeId" placeholder="ID / Code" oninput="renderAllAttendance()">
+                </div>
+                <div class="record-limit-control">
+                    <label>Name</label>
+                    <input type="text" id="attendanceEmployeeSearch" placeholder="Name or email" oninput="renderAllAttendance()">
+                </div>
+                <div class="record-limit-control">
+                    <label>Employee Type</label>
+                    <select id="attendanceEmploymentType" onchange="renderAllAttendance()">
+                        <option value="all">All Types</option>
+                        <option value="full_time">Full Time</option>
+                        <option value="intern">Intern</option>
+                        <option value="contract">Contract</option>
+                    </select>
+                </div>
+                <div class="record-limit-control">
+                    <label>Shift</label>
+                    <select id="attendanceShift" onchange="renderAllAttendance()">
+                        <option value="all">All Shifts</option>
+                        <option value="morning">Morning</option>
+                        <option value="night">Night</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="attendance-period-panel">
+                <div class="status-tabs attendance-period-tabs">
+                    <button type="button" class="secondary active" id="attendanceDayBtn" onclick="filterAttendanceHistory('day')">Day</button>
+                    <button type="button" class="secondary" id="attendanceWeekBtn" onclick="filterAttendanceHistory('week')">Week</button>
+                    <button type="button" class="secondary" id="attendanceMonthBtn" onclick="filterAttendanceHistory('month')">Month</button>
+                    <button type="button" class="secondary" id="attendanceYearBtn" onclick="filterAttendanceHistory('year')">Year</button>
                 </div>
                 <div class="record-limit-control">
                     <label>Date</label>
@@ -56,6 +113,10 @@
                     <label>Month</label>
                     <input type="month" id="attendanceMonth" onchange="renderAllAttendance()">
                 </div>
+                <div class="record-limit-control" id="attendanceYearField">
+                    <label>Year</label>
+                    <input type="number" id="attendanceYear" min="2000" max="2100" onchange="renderAllAttendance()">
+                </div>
                 <div class="record-limit-control">
                     <label>Show</label>
                     <select id="attendanceRecordLimit" onchange="renderAllAttendance()">
@@ -68,6 +129,7 @@
                 </div>
             </div>
         </div>
+
         <div class="table-wrap">
             <table>
                 <thead>
@@ -97,3 +159,4 @@
 
 </body>
 </html>
+

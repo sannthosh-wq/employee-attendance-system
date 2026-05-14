@@ -45,9 +45,14 @@ class EmploymentTypeUpdateSchema(BaseModel):
     intern_months: int | None = None
     
 class LeaveCreateSchema(BaseModel):
-    start_date: date
-    end_date: date
+    start_date: date | None = None
+    end_date: date | None = None
+    from_date: date | None = None
+    to_date: date | None = None
+    leave_type: str | None = None
     reason: str
+    custom_reason: str | None = None
+    additional_comments: str | None = None
 
 class LeaveStatusUpdateSchema(BaseModel):
     status: str
@@ -64,8 +69,14 @@ class LeaveResponse(BaseModel):
     id: int
     start_date: date
     end_date: date
+    from_date: date | None = None
+    to_date: date | None = None
     reason: str
+    leave_type: str | None = None
+    custom_reason: str | None = None
+    additional_comments: str | None = None
     status: str
+    applied_at: datetime | None = None
 
     class Config:
         from_attributes = True

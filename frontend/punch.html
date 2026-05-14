@@ -4,7 +4,7 @@
     <title>Punch In / Punch Out</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="employee-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -14,11 +14,12 @@
     <a href="attendance.html">Employee Attendance History</a>
     <a href="leave.html">Employee Apply Leave</a>
     <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="employee-payroll.html">My Payroll</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
 <div class="main-content">
-    <div class="page-header">
+    <div class="page-header employee-page-header">
         <div>
             <h1>Punch In / Punch Out</h1>
             <p>Mark your daily attendance.</p>
@@ -26,12 +27,15 @@
         <span class="badge" id="todayStatus">Loading</span>
     </div>
 
-    <div class="card action-card" id="punch">
-        <h3>Attendance Action</h3>
-        <p class="muted">Use punch in when you start work and punch out when you finish.</p>
-        <div class="button-row">
-            <button onclick="punchIn()">Punch In</button>
-            <button class="secondary" onclick="punchOut()">Punch Out</button>
+    <div class="card action-card punch-card punch-page-card" id="punch">
+        <div>
+            <span class="profile-kicker">Live Attendance</span>
+            <h3>Attendance Action</h3>
+            <p class="muted">Use punch in when you start work and punch out when you finish.</p>
+        </div>
+        <div class="button-row employee-action-row">
+            <button class="punch-in-button" onclick="punchIn()">Punch In</button>
+            <button class="secondary punch-out-button" onclick="punchOut()">Punch Out</button>
         </div>
     </div>
 </div>

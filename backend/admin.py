@@ -24,6 +24,7 @@ from attendance_logic import (
     internship_end_date,
     is_working_day,
     late_minutes,
+    mark_missed_shifts_absent,
     normalized_shift,
     reporting_start_date,
     working_leave_days,
@@ -120,12 +121,17 @@ def empty_shift_summary():
 
 def build_shift_summary(db: Session, target_date: date | None = None):
     target_date = target_date or date.today()
+    employees = db.query(Employee).filter(Employee.role != "super_admin", Employee.role.isnot(None), Employee.shift.isnot(None)).all()
+    employees = [emp for emp in employees if include_employee_in_running_month(emp, target_date.month, target_date.year)]
+    if mark_missed_shifts_absent(db, employees, target_date):
+        db.commit()
+
     summary = {
         "morning": empty_shift_summary(),
         "night": empty_shift_summary(),
     }
 
-    for emp in db.query(Employee).filter(Employee.role != "super_admin", Employee.role.isnot(None), Employee.shift.isnot(None)).all():
+    for emp in employees:
         shift_key = emp.shift if emp.shift in summary else "morning"
         status = employee_shift_date_status(db, emp, target_date)
 
@@ -144,48 +150,80 @@ def build_shift_summary(db: Session, target_date: date | None = None):
 COMPANY_NAME = "Employee Attendance System"
 
 
+def include_employee_in_running_month(employee: Employee, month: int, year: int):
+    today = date.today()
+    if employee.employment_type != "intern":
+        return True
+
+    end_date = internship_end_date(employee)
+    if not end_date:
+        return True
+
+    month_start = date(year, month, 1)
+    if month_start >= end_date:
+        return False
+
+    if (year, month) == (today.year, today.month) and today >= end_date:
+        return False
+
+    return True
+
+
 def excel_response(headers, rows, filename: str, title: str = "Attendance Report", subtitle: str = ""):
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     column_count = len(headers)
+    visible_subtitle = subtitle or "Official company attendance and workforce report"
     html = [
         "<html><head><meta charset='utf-8'><style>",
-        "body{font-family:Arial,sans-serif;color:#172033}",
+        "body{font-family:Calibri,Arial,sans-serif;color:#172033;background:#ffffff}",
         "table{border-collapse:collapse;width:100%}",
-        "td,th{border:1px solid #b8c4d6;padding:8px;mso-number-format:'\\@'}",
-        ".company{background:#1e3a8a;color:#fff;font-size:20px;font-weight:bold}",
-        ".title{background:#dbeafe;color:#172033;font-size:16px;font-weight:bold}",
-        ".meta{background:#f8fafc;color:#475569;font-weight:bold}",
-        ".header{background:#334155;color:#fff;font-weight:bold}",
+        "td,th{border:1px solid #b8c4d6;padding:8px;mso-number-format:'\\@';vertical-align:middle}",
+        ".company{background:#0f172a;color:#fff;font-size:22px;font-weight:bold;border-color:#0f172a;padding:14px}",
+        ".report{background:#0b7a75;color:#fff;font-size:16px;font-weight:bold;border-color:#0b7a75;padding:10px}",
+        ".meta-label{background:#e8eef5;color:#334155;font-weight:bold;width:170px}",
+        ".meta-value{background:#f8fafc;color:#172033;font-weight:bold}",
+        ".confidential{background:#fff7ed;color:#9a3412;font-weight:bold}",
+        ".spacer{height:12px;background:#ffffff;border-left-color:#ffffff;border-right-color:#ffffff}",
+        ".header{background:#26364f;color:#fff;font-weight:bold;text-align:center}",
+        ".row-alt{background:#f8fafc}",
         ".success{background:#dcfce7;color:#166534;font-weight:bold}",
         ".warning{background:#fef3c7;color:#92400e;font-weight:bold}",
         ".danger{background:#fee2e2;color:#991b1b;font-weight:bold}",
-        ".neutral{background:#f1f5f9;color:#334155}",
+        ".neutral{background:#f1f5f9;color:#334155;font-weight:bold}",
+        ".footer{background:#eef2f7;color:#475569;font-size:11px;font-style:italic}",
         "</style></head><body><table>",
-        f"<tr><td class='company' colspan='{column_count}'>{escape(COMPANY_NAME)}</td></tr>",
-        f"<tr><td class='title' colspan='{column_count}'>{escape(title)}</td></tr>",
-        f"<tr><td class='meta' colspan='{column_count}'>{escape(subtitle)}</td></tr>",
-        f"<tr><td class='meta' colspan='{column_count}'>Generated At: {escape(generated_at)}</td></tr>",
-        f"<tr><td colspan='{column_count}'></td></tr>",
+        f"<tr><td class='company' colspan='{column_count}'>{escape(COMPANY_NAME)} - Official Company Report</td></tr>",
+        f"<tr><td class='report' colspan='{column_count}'>{escape(title)}</td></tr>",
+        f"<tr><td class='meta-label'>Report Description</td><td class='meta-value' colspan='{max(column_count - 1, 1)}'>{escape(visible_subtitle)}</td></tr>",
+        f"<tr><td class='meta-label'>Generated At</td><td class='meta-value' colspan='{max(column_count - 1, 1)}'>{escape(generated_at)}</td></tr>",
+        f"<tr><td class='meta-label'>Prepared By</td><td class='meta-value' colspan='{max(column_count - 1, 1)}'>HR Operations / Admin Console</td></tr>",
+        f"<tr><td class='confidential' colspan='{column_count}'>Confidential: For internal company use only. Do not distribute outside authorized HR and management channels.</td></tr>",
+        f"<tr><td class='spacer' colspan='{column_count}'></td></tr>",
         "<tr>" + "".join(f"<th class='header'>{escape(str(header))}</th>" for header in headers) + "</tr>",
     ]
 
-    for row in rows:
+    for index, row in enumerate(rows):
         cells = []
         for value in row:
             text = str(value if value is not None else "")
-            css_class = ""
+            css_classes = ["row-alt"] if index % 2 else []
             if text in {"Present", "Working (Punched In)", "Yes"}:
-                css_class = " class='success'"
+                css_classes.append("success")
             elif text in {"Leave", "On Leave"}:
-                css_class = " class='warning'"
+                css_classes.append("warning")
             elif text in {"Absent", "No"}:
-                css_class = " class='danger'"
+                css_classes.append("danger")
             elif text in {"No Attendance", "Holiday", "Shift Not Started", "Pending Assignment"}:
-                css_class = " class='neutral'"
+                css_classes.append("neutral")
+            css_class = f" class='{' '.join(css_classes)}'" if css_classes else ""
             cells.append(f"<td{css_class}>{escape(text)}</td>")
         html.append("<tr>" + "".join(cells) + "</tr>")
 
-    html.append("</table></body></html>")
+    html.extend([
+        f"<tr><td class='spacer' colspan='{column_count}'></td></tr>",
+        f"<tr><td class='footer' colspan='{column_count}'>{escape(COMPANY_NAME)} | Generated by Employee Management System | Company confidential</td></tr>",
+        "</table></body></html>",
+    ])
     stream = iter(["".join(html).encode("utf-8")])
 
     return StreamingResponse(
@@ -418,6 +456,9 @@ def today_status(
 
     today = date.today()
     employees = db.query(Employee).order_by(Employee.id.asc()).all()
+    eligible_employees = [emp for emp in employees if emp.role != "super_admin"]
+    if mark_missed_shifts_absent(db, eligible_employees, today):
+        db.commit()
 
     return {
         "date": str(today),
@@ -825,12 +866,20 @@ def admin_dashboard(
 def monthly_attendance_report(
     month: int,
     year: int,
+    employee_id: int | None = None,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
 
-    employees = db.query(Employee).filter(Employee.role != "super_admin").order_by(Employee.id.asc()).all()
+    employees_query = db.query(Employee).filter(Employee.role != "super_admin")
+    if employee_id:
+        employees_query = employees_query.filter(Employee.id == employee_id)
+
+    employees = [
+        emp for emp in employees_query.order_by(Employee.id.asc()).all()
+        if include_employee_in_running_month(emp, month, year)
+    ]
     report = []
 
     for emp in employees:
@@ -946,12 +995,13 @@ def intern_attendance_report_excel(
 def monthly_attendance_report_excel(
     month: int,
     year: int,
+    employee_id: int | None = None,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
 
-    data = monthly_attendance_report(month, year, current_user, db)
+    data = monthly_attendance_report(month, year, employee_id, current_user, db)
     headers = [
         "Employee Code",
         "Name",
@@ -982,13 +1032,18 @@ def monthly_attendance_report_excel(
             row["attendance_percentage"],
         ])
 
-    filename = f"attendance-report-{year}-{month:02d}.xls"
+    employee_name = data["report"][0]["name"] if employee_id and data["report"] else None
+    filename = (
+        f"employee-attendance-report-{employee_id}-{year}-{month:02d}.xls"
+        if employee_id
+        else f"attendance-report-{year}-{month:02d}.xls"
+    )
     return excel_response(
         headers,
         rows,
         filename,
-        "Monthly Attendance Report",
-        f"Payroll Month: {month:02d}-{year}",
+        "Employee Monthly Attendance Report" if employee_id else "Monthly Attendance Report",
+        f"Employee: {employee_name or employee_id} | Payroll Month: {month:02d}-{year}" if employee_id else f"Payroll Month: {month:02d}-{year}",
     )
 
 
@@ -999,17 +1054,20 @@ def attendance_report_excel(
     week: str | None = None,
     month: int | None = None,
     year: int | None = None,
+    employee_id: int | None = None,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
 
-    employees = (
-        db.query(Employee)
-        .filter(Employee.role != "super_admin")
-        .order_by(Employee.id.asc())
-        .all()
-    )
+    employees_query = db.query(Employee).filter(Employee.role != "super_admin")
+    if employee_id:
+        employees_query = employees_query.filter(Employee.id == employee_id)
+
+    employees = employees_query.order_by(Employee.id.asc()).all()
+
+    if employee_id and not employees:
+        raise HTTPException(status_code=404, detail="Employee not found")
 
     if period == "daily":
         report_date = selected_date or date.today()
@@ -1055,9 +1113,9 @@ def attendance_report_excel(
         return excel_response(
             headers,
             rows,
-            f"daily-attendance-report-{report_date}.xls",
-            "Daily Attendance Report",
-            f"Report Date: {report_date}",
+            f"employee-daily-attendance-report-{employee_id}-{report_date}.xls" if employee_id else f"daily-attendance-report-{report_date}.xls",
+            "Employee Daily Attendance Report" if employee_id else "Daily Attendance Report",
+            f"Employee: {employees[0].name} | Report Date: {report_date}" if employee_id else f"Report Date: {report_date}",
         )
 
     if period == "weekly":
@@ -1117,16 +1175,16 @@ def attendance_report_excel(
         return excel_response(
             headers,
             rows,
-            f"weekly-attendance-report-{week}.xls",
-            "Weekly Attendance Report",
-            f"Week: {week} | Period: {week_start} to {week_end}",
+            f"employee-weekly-attendance-report-{employee_id}-{week}.xls" if employee_id else f"weekly-attendance-report-{week}.xls",
+            "Employee Weekly Attendance Report" if employee_id else "Weekly Attendance Report",
+            f"Employee: {employees[0].name} | Week: {week} | Period: {week_start} to {week_end}" if employee_id else f"Week: {week} | Period: {week_start} to {week_end}",
         )
 
     if period == "monthly":
         today = date.today()
         month = month or today.month
         year = year or today.year
-        return monthly_attendance_report_excel(month, year, current_user, db)
+        return monthly_attendance_report_excel(month, year, employee_id, current_user, db)
 
     raise HTTPException(status_code=400, detail="Period must be daily, weekly, or monthly")
 
@@ -1161,7 +1219,10 @@ def daily_attendance_trend(
     if employee_id:
         employees_query = employees_query.filter(Employee.id == employee_id)
 
-    selected_employees = employees_query.order_by(Employee.id.asc()).all()
+    selected_employees = [
+        emp for emp in employees_query.order_by(Employee.id.asc()).all()
+        if include_employee_in_running_month(emp, month, year)
+    ]
     records = (
         db.query(Attendance)
         .filter(
@@ -1245,6 +1306,9 @@ def low_attendance_warning(
     )
 
     for emp in assigned_employees:
+        if not include_employee_in_running_month(emp, month, year):
+            continue
+
         summary = employee_monthly_summary(db, emp.id, month, year)
 
         if summary["attendance_percentage"] < threshold:

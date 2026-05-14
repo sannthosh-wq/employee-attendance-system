@@ -1,5 +1,5 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8001";
+const API_BASE = "http://127.0.0.1:8000";
 const DEFAULT_PROFILE_PHOTO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%23d8f6f2'/%3E%3Cstop offset='1' stop-color='%23e8edff'/%3E%3C/linearGradient%3E%3ClinearGradient id='body' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop stop-color='%230b7a75'/%3E%3Cstop offset='1' stop-color='%233157d5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='128' fill='url(%23bg)'/%3E%3Ccircle cx='256' cy='190' r='92' fill='%23ffffff' opacity='.95'/%3E%3Ccircle cx='256' cy='176' r='74' fill='url(%23body)'/%3E%3Cpath d='M92 452c18-104 85-154 164-154s146 50 164 154' fill='url(%23body)'/%3E%3C/svg%3E";
 
 if (!token) {
@@ -21,7 +21,10 @@ let activeStatusFilter = "all";
 let activeEmployeeShiftFilter = "all";
 let activeSummaryShift = "morning";
 let activeAttendanceFilter = "day";
+let employeeAnalyticsPage = 1;
+let employeeAnalyticsRecords = [];
 const LOW_ATTENDANCE_THRESHOLD = 70;
+const EMPLOYEE_ANALYTICS_PAGE_SIZE = 10;
 
 document.addEventListener("DOMContentLoaded", async () => {
     await loadCurrentAdminContext();
@@ -571,6 +574,8 @@ function setupAttendanceAnalytics() {
 async function loadAttendanceAnalytics() {
     if (!document.getElementById("analyticsMonth")) return;
 
+    employeeAnalyticsPage = 1;
+
     const month = getValue("analyticsMonth");
     const year = getValue("analyticsYear");
     const selectedDate = getValue("analyticsDate") || formatInputDate(new Date());
@@ -745,14 +750,15 @@ function buildAnalyticsModel(report, attendanceRecords, month, year) {
     const selectedShift = getValue("analyticsShift") || "all";
     const selectedRole = getValue("analyticsRole") || "all";
     const selectedEmployee = getValue("analyticsEmployee") || "all";
+    const activeEmployees = analyticsActiveEmployees(month, year);
     const employeeMap = {};
 
-    employees.forEach(emp => {
+    activeEmployees.forEach(emp => {
         employeeMap[emp.id] = emp;
     });
 
     const filteredEmployeeIds = new Set(
-        employees
+        activeEmployees
             .filter(emp => selectedShift === "all" || emp.shift === selectedShift)
             .filter(emp => selectedRole === "all" || emp.role === selectedRole)
             .filter(emp => selectedEmployee === "all" || String(emp.id) === selectedEmployee)
@@ -811,8 +817,10 @@ function populateAnalyticsEmployeeFilter() {
     const selected = select.value || "all";
     const selectedShift = getValue("analyticsShift") || "all";
     const selectedRole = getValue("analyticsRole") || "all";
+    const selectedMonth = Number(getValue("analyticsMonth") || new Date().getMonth() + 1);
+    const selectedYear = Number(getValue("analyticsYear") || new Date().getFullYear());
 
-    const options = employees
+    const options = analyticsActiveEmployees(selectedMonth, selectedYear)
         .filter(emp => selectedShift === "all" || emp.shift === selectedShift)
         .filter(emp => selectedRole === "all" || emp.role === selectedRole)
         .map(emp => `<option value="${emp.id}">${emp.name} - ${formatLabel(emp.shift)}</option>`)
@@ -822,6 +830,47 @@ function populateAnalyticsEmployeeFilter() {
 
     const exists = [...select.options].some(option => option.value === selected);
     select.value = exists ? selected : "all";
+}
+
+function analyticsActiveEmployees(month, year) {
+    return employees.filter(employee => !isInternOverForRunningMonth(employee, month, year));
+}
+
+function isInternOverForRunningMonth(employee, month, year) {
+    const today = new Date();
+    const isRunningMonth = Number(month) === today.getMonth() + 1 && Number(year) === today.getFullYear();
+
+    if (employee.employment_type !== "intern") {
+        return false;
+    }
+
+    const endDate = internshipEndDate(employee);
+    if (!endDate) {
+        return false;
+    }
+
+    const monthStart = new Date(Number(year), Number(month) - 1, 1);
+    if (monthStart >= endDate) {
+        return true;
+    }
+
+    return Boolean(isRunningMonth && today >= endDate);
+}
+
+function internshipEndDate(employee) {
+    const months = Number(employee.intern_months || 0);
+    const joinedAt = parseRecordDate(employee.joined_at);
+
+    if (!months || !joinedAt) {
+        return null;
+    }
+
+    const startDate = new Date(joinedAt);
+    startDate.setDate(startDate.getDate() + 1);
+
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + months);
+    return endDate;
 }
 
 function buildDailyAnalytics(records, month, year) {
@@ -871,6 +920,9 @@ function buildDailyAnalytics(records, month, year) {
 function filterWarningData(data) {
     const selectedShift = getValue("analyticsShift") || "all";
     const selectedRole = getValue("analyticsRole") || "all";
+    const selectedMonth = Number(getValue("analyticsMonth") || new Date().getMonth() + 1);
+    const selectedYear = Number(getValue("analyticsYear") || new Date().getFullYear());
+    const activeEmployeeIds = new Set(analyticsActiveEmployees(selectedMonth, selectedYear).map(employee => employee.id));
 
     const employeesById = {};
     employees.forEach(emp => {
@@ -880,6 +932,7 @@ function filterWarningData(data) {
     const filtered = data.employees.filter(item => {
         const employee = employeesById[item.employee_id];
         if (!employee) return false;
+        if (!activeEmployeeIds.has(employee.id)) return false;
 
         return (selectedShift === "all" || employee.shift === selectedShift)
             && (selectedRole === "all" || employee.role === selectedRole);
@@ -1190,7 +1243,7 @@ async function uploadEmployeeProfilePhoto() {
     }
 }
 
-async function downloadAttendanceExcel(period = "monthly") {
+async function downloadAttendanceExcel(period = "monthly", employeeId = null) {
     const now = new Date();
     const selectedDate = getValue("analyticsDate") || getValue("attendanceDate") || formatInputDate(now);
     const selectedDateObject = parseRecordDate(selectedDate) || now;
@@ -1199,6 +1252,7 @@ async function downloadAttendanceExcel(period = "monthly") {
     const monthValue = getValue("analyticsMonth") || (getValue("attendanceDate") ? selectedDateObject.getMonth() + 1 : attendanceMonth.split("-")[1]) || now.getMonth() + 1;
     const yearValue = getValue("analyticsYear") || (getValue("attendanceDate") ? selectedDateObject.getFullYear() : attendanceMonth.split("-")[0]) || getValue("attendanceYear") || now.getFullYear();
     const params = new URLSearchParams({ period });
+    const employee = employeeId ? employees.find(item => String(item.id) === String(employeeId)) : null;
 
     if (period === "daily") {
         params.set("selected_date", selectedDate);
@@ -1207,6 +1261,10 @@ async function downloadAttendanceExcel(period = "monthly") {
     } else {
         params.set("month", monthValue);
         params.set("year", yearValue);
+    }
+
+    if (employeeId) {
+        params.set("employee_id", employeeId);
     }
 
     try {
@@ -1225,7 +1283,7 @@ async function downloadAttendanceExcel(period = "monthly") {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = attendanceReportFilename(period, selectedDate, selectedWeek, monthValue, yearValue);
+        link.download = attendanceReportFilename(period, selectedDate, selectedWeek, monthValue, yearValue, employee);
         link.click();
         URL.revokeObjectURL(url);
     } catch (error) {
@@ -1233,16 +1291,38 @@ async function downloadAttendanceExcel(period = "monthly") {
     }
 }
 
-function attendanceReportFilename(period, selectedDate, selectedWeek, month, year) {
+async function downloadSelectedEmployeeAttendanceExcel(period = "monthly") {
+    const employeeId = getValue("analyticsEmployee");
+    if (!employeeId || employeeId === "all") {
+        alert("Select one employee first to download person attendance.");
+        return;
+    }
+
+    await downloadAttendanceExcel(period, employeeId);
+}
+
+async function downloadSelectedAttendancePersonExcel(period = "monthly") {
+    const employee = selectedAttendancePerson();
+    if (!employee) {
+        alert("Filter to one employee by ID, code, or name before downloading person attendance.");
+        return;
+    }
+
+    await downloadAttendanceExcel(period, employee.id);
+}
+
+function attendanceReportFilename(period, selectedDate, selectedWeek, month, year, employee = null) {
+    const prefix = employee ? `employee-${slugify(employee.name)}-${employee.employee_code || employee.id}` : "";
+
     if (period === "daily") {
-        return `daily-attendance-report-${selectedDate}.xls`;
+        return `${prefix ? `${prefix}-` : ""}daily-attendance-report-${selectedDate}.xls`;
     }
 
     if (period === "weekly") {
-        return `weekly-attendance-report-${selectedWeek}.xls`;
+        return `${prefix ? `${prefix}-` : ""}weekly-attendance-report-${selectedWeek}.xls`;
     }
 
-    return `monthly-attendance-report-${year}-${pad2(month)}.xls`;
+    return `${prefix ? `${prefix}-` : ""}monthly-attendance-report-${year}-${pad2(month)}.xls`;
 }
 
 async function downloadInternAttendanceExcel() {
@@ -1418,12 +1498,18 @@ function getFilteredAttendanceRecords() {
     }
 
     const employeeSearch = getValue("attendanceEmployeeSearch").toLowerCase();
+    const employeeIdSearch = getValue("attendanceEmployeeId").toLowerCase();
+    const employmentType = getValue("attendanceEmploymentType") || "all";
+    const shift = getValue("attendanceShift") || "all";
 
     return allAttendanceRecords.filter(record => {
         const recordDate = parseRecordDate(record.date);
 
         if (!recordDate) return false;
-        if (!matchesAttendanceEmployee(record, employeeSearch)) return false;
+        if (!matchesAttendanceEmployeeName(record, employeeSearch)) return false;
+        if (!matchesAttendanceEmployeeId(record, employeeIdSearch)) return false;
+        if (employmentType !== "all" && record.employment_type !== employmentType) return false;
+        if (shift !== "all" && normalizedRecordShift(record.shift) !== shift) return false;
 
         if (activeAttendanceFilter === "day") {
             const selectedDate = getValue("attendanceDate");
@@ -1440,6 +1526,22 @@ function getFilteredAttendanceRecords() {
 
         return String(recordDate.getFullYear()) === getValue("attendanceYear");
     });
+}
+
+function selectedAttendancePerson() {
+    const records = getFilteredAttendanceRecords();
+    const employeesById = {};
+
+    records.forEach(record => {
+        employeesById[record.employee_id] = {
+            id: record.employee_id,
+            employee_code: record.employee_code,
+            name: record.employee_name
+        };
+    });
+
+    const matches = Object.values(employeesById);
+    return matches.length === 1 ? matches[0] : null;
 }
 
 function renderAttendanceSummary(records) {
@@ -1547,22 +1649,33 @@ function attendancePeriodText() {
     return getValue("attendanceYear") || "Selected year";
 }
 
-function matchesAttendanceEmployee(record, search) {
+function matchesAttendanceEmployeeName(record, search) {
     if (!search) return true;
 
     return [
-        record.employee_id,
-        record.employee_code,
         record.employee_name,
         record.email,
         record.role,
-        record.shift,
-        record.employment_type,
-        record.joined_at
     ]
         .join(" ")
         .toLowerCase()
         .includes(search);
+}
+
+function matchesAttendanceEmployeeId(record, search) {
+    if (!search) return true;
+
+    return [
+        record.employee_id,
+        record.employee_code
+    ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search);
+}
+
+function normalizedRecordShift(value) {
+    return value === "day" ? "morning" : value;
 }
 
 function updateFilteredTodaySummary(shifts) {
@@ -2087,10 +2200,17 @@ function renderEmployeeAnalyticsTable(records) {
     if (!table) return;
 
     table.innerHTML = "";
-
-    records
+    employeeAnalyticsRecords = records
         .slice()
-        .sort((a, b) => parseRecordDate(b.date) - parseRecordDate(a.date))
+        .sort((a, b) => parseRecordDate(b.date) - parseRecordDate(a.date));
+
+    const pageSize = employeeAnalyticsPageSize();
+    const totalPages = Math.max(Math.ceil(employeeAnalyticsRecords.length / pageSize), 1);
+    employeeAnalyticsPage = Math.min(Math.max(employeeAnalyticsPage, 1), totalPages);
+    const startIndex = (employeeAnalyticsPage - 1) * pageSize;
+    const visibleRecords = employeeAnalyticsRecords.slice(startIndex, startIndex + pageSize);
+
+    visibleRecords
         .forEach(record => {
             const active = Boolean(record.login_time && !record.logout_time);
             table.innerHTML += `
@@ -2107,7 +2227,56 @@ function renderEmployeeAnalyticsTable(records) {
         });
 
     setText("employeeRecordCount", `${records.length} Records`);
+    updateEmployeeAnalyticsPagination(records.length, pageSize, totalPages, startIndex, visibleRecords.length);
     emptyTable(table, 7);
+}
+
+function employeeAnalyticsPageSize() {
+    return EMPLOYEE_ANALYTICS_PAGE_SIZE;
+}
+
+function updateEmployeeAnalyticsPagination(totalRecords, pageSize, totalPages, startIndex, visibleCount) {
+    const pageInfo = document.getElementById("employeeAnalyticsPageInfo");
+    const previous = document.getElementById("employeeAnalyticsPrevBtn");
+    const next = document.getElementById("employeeAnalyticsNextBtn");
+
+    if (pageInfo) {
+        const from = totalRecords ? startIndex + 1 : 0;
+        const to = totalRecords ? startIndex + visibleCount : 0;
+        pageInfo.innerText = `${from}-${to} of ${totalRecords} records | Page ${employeeAnalyticsPage} of ${totalPages}`;
+    }
+
+    if (previous) {
+        previous.disabled = employeeAnalyticsPage <= 1;
+    }
+
+    if (next) {
+        next.disabled = employeeAnalyticsPage >= totalPages || totalRecords <= pageSize;
+    }
+}
+
+function previousEmployeeAnalyticsPage() {
+    if (employeeAnalyticsPage <= 1) return;
+
+    employeeAnalyticsPage -= 1;
+    renderEmployeeAnalyticsTable(employeeAnalyticsRecords);
+    scrollEmployeeAnalyticsTableIntoView();
+}
+
+function nextEmployeeAnalyticsPage() {
+    const totalPages = Math.max(Math.ceil(employeeAnalyticsRecords.length / employeeAnalyticsPageSize()), 1);
+    if (employeeAnalyticsPage >= totalPages) return;
+
+    employeeAnalyticsPage += 1;
+    renderEmployeeAnalyticsTable(employeeAnalyticsRecords);
+    scrollEmployeeAnalyticsTableIntoView();
+}
+
+function scrollEmployeeAnalyticsTableIntoView() {
+    document.getElementById("employeeAnalyticsTable")?.closest(".table-card")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
 }
 
 function renderBestAttendance(report) {
@@ -2411,6 +2580,13 @@ function formatLabel(value) {
         .split("_")
         .map(part => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" ");
+}
+
+function slugify(value) {
+    return String(value || "employee")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
 }
 
 function badge(text, type) {

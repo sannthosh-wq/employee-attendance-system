@@ -376,57 +376,84 @@ def generate_company_payslip_pdf(employee: Employee, payroll: Payroll, path: str
         ("Loss of Pay", payroll.loss_of_pay),
     ]
 
+    payslip_id = f"PAY-{payroll.year}-{payroll.month:02d}-{payroll.employee_id}"
+    processed_on = payroll.processed_at.date() if payroll.processed_at else "-"
+
     content = [
-        "0.95 0.97 1 rg",
-        pdf_rect(0, 760, 595, 82, True),
+        "0.06 0.10 0.18 rg",
+        pdf_rect(0, 744, 595, 98, True),
+        "0.04 0.48 0.46 rg",
+        pdf_rect(0, 744, 9, 98, True),
+        "1 1 1 rg",
+        pdf_text(COMPANY_NAME, 42, 808, 20, "F2"),
+        pdf_text("Company Payroll Department", 42, 789, 10),
+        pdf_text("Official Salary Advice and Receipt", 42, 773, 12, "F2"),
+        "0.87 0.95 0.93 rg",
+        pdf_rect(402, 790, 126, 28, True),
+        "0 0 0 RG 0.06 0.10 0.18 rg",
+        pdf_text("EMPLOYEE COPY", 422, 800, 10, "F2"),
+        "0.94 0.97 1 rg",
+        pdf_rect(42, 684, 511, 42, True),
         "0 0 0 RG 0 0 0 rg",
-        pdf_text(COMPANY_NAME, 42, 805, 20, "F2"),
-        pdf_text("Official Salary Slip", 42, 786, 11),
-        pdf_text(f"Payslip ID: PAY-{payroll.year}-{payroll.month:02d}-{payroll.employee_id}", 380, 807, 9),
-        pdf_text(f"Pay Period: {payroll.month:02d}-{payroll.year}", 380, 791, 9),
-        pdf_text(f"Processed On: {payroll.processed_at.date() if payroll.processed_at else '-'}", 380, 775, 9),
-        pdf_line(42, 748, 553, 748),
-        pdf_text("Employee Information", 42, 724, 13, "F2"),
-        pdf_rect(42, 632, 511, 78),
-        pdf_text(f"Name: {employee.name}", 58, 687, 10),
-        pdf_text(f"Employee Code: {employee.employee_code or employee.id}", 58, 667, 10),
-        pdf_text(f"Email: {employee.email}", 58, 647, 10),
-        pdf_text(f"Role: {(employee.role or '-').replace('_', ' ').title()}", 330, 687, 10),
-        pdf_text(f"Working Days: {payroll.total_days}", 330, 667, 10),
-        pdf_text(f"Present / Leave / Absent: {payroll.present_days} / {payroll.leave_days} / {payroll.absent_days}", 330, 647, 10),
-        pdf_text("Earnings", 42, 604, 13, "F2"),
-        pdf_text("Deductions", 322, 604, 13, "F2"),
-        pdf_rect(42, 452, 230, 136),
-        pdf_rect(322, 452, 230, 136),
+        pdf_text(f"Payslip ID: {payslip_id}", 58, 711, 9, "F2"),
+        pdf_text(f"Pay Period: {payroll.month:02d}-{payroll.year}", 238, 711, 9, "F2"),
+        pdf_text(f"Issue Date: {processed_on}", 402, 711, 9, "F2"),
+        pdf_text("This document confirms salary processed and received from the company payroll system.", 58, 694, 8),
+        pdf_text("Employee Information", 42, 656, 13, "F2"),
+        pdf_rect(42, 560, 511, 78),
+        pdf_text(f"Name: {employee.name}", 58, 615, 10),
+        pdf_text(f"Employee Code: {employee.employee_code or employee.id}", 58, 595, 10),
+        pdf_text(f"Email: {employee.email}", 58, 575, 10),
+        pdf_text(f"Role: {(employee.role or '-').replace('_', ' ').title()}", 330, 615, 10),
+        pdf_text(f"Working Days: {payroll.total_days}", 330, 595, 10),
+        pdf_text(f"Present / Leave / Absent: {payroll.present_days} / {payroll.leave_days} / {payroll.absent_days}", 330, 575, 10),
+        pdf_text("Earnings", 42, 532, 13, "F2"),
+        pdf_text("Deductions", 322, 532, 13, "F2"),
+        "0.98 0.99 1 rg",
+        pdf_rect(42, 380, 230, 136, True),
+        pdf_rect(322, 380, 230, 136, True),
+        "0.76 0.82 0.90 RG 0 0 0 rg",
+        pdf_rect(42, 380, 230, 136),
+        pdf_rect(322, 380, 230, 136),
     ]
 
-    y = 566
+    y = 494
     for label, amount in earnings:
         content.append(pdf_text(label, 58, y, 9))
         content.append(pdf_text(f"INR {money(amount)}", 184, y, 9))
         y -= 22
 
-    y = 566
+    y = 494
     for label, amount in deductions:
         content.append(pdf_text(label, 338, y, 9))
         content.append(pdf_text(f"INR {money(amount)}", 462, y, 9))
         y -= 22
 
     content.extend([
-        pdf_line(58, 474, 256, 474),
-        pdf_line(338, 474, 536, 474),
-        pdf_text("Gross Earnings", 58, 458, 10, "F2"),
-        pdf_text(f"INR {money(payroll.gross_salary)}", 174, 458, 10, "F2"),
-        pdf_text("Total Deductions", 338, 458, 10, "F2"),
-        pdf_text(f"INR {money(payroll.total_deductions)}", 454, 458, 10, "F2"),
-        "0.90 0.96 0.93 rg",
-        pdf_rect(42, 374, 511, 52, True),
+        pdf_line(58, 402, 256, 402),
+        pdf_line(338, 402, 536, 402),
+        pdf_text("Gross Earnings", 58, 386, 10, "F2"),
+        pdf_text(f"INR {money(payroll.gross_salary)}", 174, 386, 10, "F2"),
+        pdf_text("Total Deductions", 338, 386, 10, "F2"),
+        pdf_text(f"INR {money(payroll.total_deductions)}", 454, 386, 10, "F2"),
+        "0.86 0.96 0.93 rg",
+        pdf_rect(42, 292, 511, 60, True),
         "0 0 0 RG 0 0 0 rg",
-        pdf_text(f"Net Pay: INR {money(payroll.net_salary)}", 58, 404, 18, "F2"),
-        pdf_text("This is a system generated payslip and does not require a signature.", 58, 346, 9),
-        pdf_text("For payroll queries, contact HR Operations.", 58, 330, 9),
-        pdf_line(42, 90, 553, 90),
-        pdf_text(f"{COMPANY_NAME} | Confidential Payroll Document", 42, 70, 9),
+        pdf_text("Net Salary Received from Company", 58, 328, 10, "F2"),
+        pdf_text(f"INR {money(payroll.net_salary)}", 58, 307, 20, "F2"),
+        "0.94 0.97 1 rg",
+        pdf_rect(42, 210, 511, 52, True),
+        "0 0 0 RG 0 0 0 rg",
+        pdf_text("Payroll Acknowledgement", 58, 241, 10, "F2"),
+        pdf_text("Salary has been processed through the official company payroll records for the stated pay period.", 58, 224, 8),
+        pdf_text("This is a system generated payslip and does not require a physical signature.", 58, 170, 9),
+        pdf_text("For payroll queries, contact HR Operations with the Payslip ID above.", 58, 154, 9),
+        pdf_line(42, 118, 220, 118),
+        pdf_line(375, 118, 553, 118),
+        pdf_text("HR Operations", 84, 100, 9, "F2"),
+        pdf_text("Employee Copy", 422, 100, 9, "F2"),
+        pdf_line(42, 72, 553, 72),
+        pdf_text(f"{COMPANY_NAME} | Confidential Company Payroll Document | {payslip_id}", 42, 52, 8),
     ])
     stream = "\n".join(content).encode("latin-1", "replace")
 

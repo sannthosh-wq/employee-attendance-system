@@ -4,7 +4,7 @@
     <title>Employee Profile</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="employee-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -14,11 +14,12 @@
     <a href="attendance.html">Employee Attendance History</a>
     <a href="leave.html">Employee Apply Leave</a>
     <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="employee-payroll.html">My Payroll</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
 <div class="main-content">
-    <div class="page-header">
+    <div class="page-header employee-page-header">
         <div>
             <h1>Profile</h1>
             <p>Your employee account details.</p>
@@ -26,7 +27,7 @@
         <span class="badge" id="todayStatus">Loading</span>
     </div>
 
-    <div class="card profile-card profile-overview-card">
+    <div class="card profile-card profile-overview-card employee-profile-shell">
         <div class="profile-hero">
             <div class="profile-photo-frame">
                 <img class="profile-photo" id="profilePhoto" alt="Profile photo">

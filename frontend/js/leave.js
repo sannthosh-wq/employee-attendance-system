@@ -1,5 +1,5 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8001";
+const API_BASE = "http://127.0.0.1:8000";
 
 if (!token) {
     window.location.href = "login.html";
@@ -7,6 +7,8 @@ if (!token) {
 
 document.addEventListener("DOMContentLoaded", async () => {
     if (await redirectSuperAdminLeavePage()) return;
+    setupLeaveForm();
+    restoreLeaveMessage();
     loadLeaveBalance();
     loadNotifications();
     loadLeaves();
@@ -51,33 +53,134 @@ async function redirectSuperAdminLeavePage() {
     return false;
 }
 
-async function applyLeave() {
-    const start_date = getValue("startDate");
-    const end_date = getValue("endDate");
-    const reason = getValue("reason") || "Leave request";
+function setupLeaveForm() {
+    const form = document.getElementById("leaveForm");
+    const reason = document.getElementById("leaveReason");
+    const customReason = document.getElementById("customReason");
+    const customReasonGroup = document.getElementById("customReasonGroup");
+    const fromDate = document.getElementById("fromDate");
+    const toDate = document.getElementById("toDate");
 
-    if (!start_date || !end_date) {
-        alert("Please select leave dates");
+    if (!form) return;
+
+    const today = getTodayDateString();
+    if (fromDate) fromDate.min = today;
+    if (toDate) toDate.min = today;
+
+    reason?.addEventListener("change", () => {
+        const isOther = reason.value === "Other";
+        customReasonGroup?.classList.toggle("hidden", !isOther);
+        if (customReason) {
+            customReason.required = isOther;
+            if (!isOther) customReason.value = "";
+        }
+    });
+
+    fromDate?.addEventListener("change", () => {
+        if (toDate && fromDate.value) {
+            toDate.min = fromDate.value;
+        }
+        validateDateRange(false);
+    });
+
+    toDate?.addEventListener("change", () => validateDateRange(false));
+    reason?.addEventListener("pointerdown", positionReasonDropdown);
+    reason?.addEventListener("focus", positionReasonDropdown);
+    form.addEventListener("submit", applyLeave);
+}
+
+function positionReasonDropdown() {
+    const reason = document.getElementById("leaveReason");
+    if (!reason) return;
+
+    const top = reason.getBoundingClientRect().top + window.scrollY - 160;
+    window.scrollTo({
+        top: Math.max(top, 0),
+        behavior: "smooth"
+    });
+}
+
+function restoreLeaveMessage() {
+    const message = sessionStorage.getItem("leaveSuccessMessage");
+    if (!message) return;
+
+    showLeaveMessage(message, "success");
+    sessionStorage.removeItem("leaveSuccessMessage");
+}
+
+async function applyLeave(event) {
+    event?.preventDefault();
+
+    const leave_type = getValue("leaveType");
+    const from_date = getValue("fromDate");
+    const to_date = getValue("toDate");
+    const reason = getValue("leaveReason");
+    const custom_reason = getValue("customReason");
+    const additional_comments = getValue("additionalComments");
+
+    if (!leave_type || !from_date || !to_date || !reason) {
+        showLeaveMessage("Please complete all required leave fields.", "error");
         return;
     }
 
+    if (reason === "Other" && !custom_reason) {
+        showLeaveMessage("Please enter a custom reason for Other.", "error");
+        return;
+    }
+
+    if (!validateDateRange(true)) return;
+
     try {
-        const data = await apiRequest("/leave/apply", {
+        setSubmitting(true);
+        const data = await apiRequest("/apply-leave", {
             method: "POST",
-            body: JSON.stringify({ start_date, end_date, reason })
+            body: JSON.stringify({
+                leave_type,
+                from_date,
+                to_date,
+                reason,
+                custom_reason: reason === "Other" ? custom_reason : null,
+                additional_comments: additional_comments || null
+            })
         });
 
         const warning = data.balance_warning ? `\n\nBalance warning: ${data.balance_warning}` : "";
-        alert(`${data.message}. Total days: ${data.total_days}${warning}`);
-        setValue("startDate", "");
-        setValue("endDate", "");
-        setValue("reason", "");
+        const successMessage = `${data.message}. Total days: ${data.total_days}${warning}`;
+        showLeaveMessage(successMessage, "success");
+        document.getElementById("leaveForm")?.reset();
+        document.getElementById("customReasonGroup")?.classList.add("hidden");
+        const customReason = document.getElementById("customReason");
+        if (customReason) customReason.required = false;
         loadLeaveBalance();
         loadNotifications();
         loadLeaves();
+        sessionStorage.setItem("leaveSuccessMessage", successMessage);
+        window.location.href = "leave.html#leave-history";
     } catch (error) {
-        alert(error.message);
+        showLeaveMessage(error.message, "error");
+    } finally {
+        setSubmitting(false);
     }
+}
+
+function validateDateRange(showMessage) {
+    const fromDate = getValue("fromDate");
+    const toDate = getValue("toDate");
+    const today = getTodayDateString();
+
+    if (!fromDate || !toDate) return true;
+
+    if (fromDate < today || toDate < today) {
+        if (showMessage) showLeaveMessage("Leave cannot be applied for past dates.", "error");
+        return false;
+    }
+
+    if (fromDate > toDate) {
+        if (showMessage) showLeaveMessage("From Date cannot be greater than To Date.", "error");
+        return false;
+    }
+
+    return true;
 }
 
 async function loadLeaveBalance() {
@@ -163,16 +266,17 @@ async function loadLeaves() {
             table.innerHTML += `
                 <tr>
                     <td>${leave.id}</td>
+                    <td>${leave.leave_type || "-"}</td>
                     <td>${leave.start_date}</td>
                     <td>${leave.end_date}</td>
-                    <td>${leave.reason}</td>
+                    <td>${formatLeaveReason(leave)}</td>
                     <td>${formatStatus(leave.status)}</td>
                 </tr>
             `;
         });
 
         if (!table.innerHTML) {
-            table.innerHTML = `<tr><td colspan="5" class="muted">No leave requests found</td></tr>`;
+            table.innerHTML = `<tr><td colspan="6" class="muted">No leave requests found</td></tr>`;
         }
     } catch (error) {
         alert(error.message);
@@ -183,6 +287,50 @@ function formatStatus(status) {
     if (status === "approved") return `<span class="badge success">Approved</span>`;
     if (status === "rejected") return `<span class="badge danger">Rejected</span>`;
     return `<span class="badge warning">Pending</span>`;
+}
+
+function formatLeaveReason(leave) {
+    const reason = escapeHtml(leave.reason || "-");
+    if (leave.custom_reason) {
+        return `${reason}: ${escapeHtml(leave.custom_reason)}`;
+    }
+    return reason;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+function showLeaveMessage(message, type) {
+    const element = document.getElementById("leaveMessage");
+    if (!element) {
+        alert(message);
+        return;
+    }
+
+    element.textContent = message;
+    element.className = `form-message ${type}`;
+}
+
+function setSubmitting(isSubmitting) {
+    const button = document.getElementById("submitLeaveButton");
+    if (!button) return;
+
+    button.disabled = isSubmitting;
+    button.textContent = isSubmitting ? "Submitting..." : "Submit Leave Request";
+}
+
+function getTodayDateString() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
 }
 
 function getValue(id) {

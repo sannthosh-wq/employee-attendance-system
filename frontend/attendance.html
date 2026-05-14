@@ -4,7 +4,7 @@
     <title>Attendance History</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="employee-page">
 
 <div class="sidebar">
     <h2>EMS</h2>
@@ -14,19 +14,20 @@
     <a href="attendance.html" class="active employee-attendance-label">Employee Attendance History</a>
     <a href="leave.html" class="employee-leave-label">Employee Apply Leave</a>
     <a href="monthly-summary.html">Monthly Attendance Summary</a>
+    <a href="employee-payroll.html">My Payroll</a>
     <a href="#" onclick="logout()">Logout</a>
 </div>
 
 <div class="main-content">
     <div class="dashboard">
-        <div class="page-header">
+        <div class="page-header employee-page-header">
             <div>
                 <h1 id="attendancePageTitle">Employee Attendance History</h1>
                 <p id="attendancePageSubtitle">Your previous punch in and punch out records.</p>
             </div>
         </div>
 
-        <div class="card table-card">
+        <div class="card table-card employee-table-card">
             <div class="table-wrap">
                 <table>
                     <thead>

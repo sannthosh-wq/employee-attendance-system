@@ -14,6 +14,7 @@ import leave
 import employee
 import notifications
 import payroll
+import ml
 
 Base.metadata.create_all(bind=engine)
 
@@ -33,6 +34,11 @@ def upgrade_existing_schema():
         connection.execute(text("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS early_minutes INTEGER DEFAULT 0"))
         connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS leave_date DATE"))
         connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS leave_type VARCHAR"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS from_date DATE"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS to_date DATE"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS custom_reason TEXT"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS additional_comments TEXT"))
+        connection.execute(text("ALTER TABLE leaves ADD COLUMN IF NOT EXISTS applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
         connection.execute(text("""
             UPDATE attendance
             SET status = 'Present'
@@ -43,6 +49,18 @@ def upgrade_existing_schema():
             SET leave_date = start_date
             WHERE leave_date IS NULL
               AND start_date IS NOT NULL
+        """))
+        connection.execute(text("""
+            UPDATE leaves
+            SET from_date = start_date
+            WHERE from_date IS NULL
+              AND start_date IS NOT NULL
+        """))
+        connection.execute(text("""
+            UPDATE leaves
+            SET to_date = end_date
+            WHERE to_date IS NULL
+              AND end_date IS NOT NULL
         """))
         connection.execute(text("""
             UPDATE attendance
@@ -263,6 +281,19 @@ def upgrade_existing_schema():
                 deleted_at TIMESTAMP
             )
         """))
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS attrition_predictions (
+                id SERIAL PRIMARY KEY,
+                employee_id INTEGER NOT NULL REFERENCES employees(id),
+                risk_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+                risk_level VARCHAR NOT NULL,
+                predicted_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        connection.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_attrition_predictions_employee_date
+            ON attrition_predictions(employee_id, predicted_on)
+        """))
 
 
 upgrade_existing_schema()
@@ -281,10 +312,12 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(attendance.router)
 app.include_router(admin.router)
+app.include_router(leave.public_router)
 app.include_router(leave.router)
 app.include_router(employee.router)
 app.include_router(notifications.router)
 app.include_router(payroll.router)
+app.include_router(ml.router)
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

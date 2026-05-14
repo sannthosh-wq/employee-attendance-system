@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from attendance_logic import employee_leave_balance, employee_monthly_summary, employee_shift_date_status, employee_work_start_date, internship_end_date, is_working_day, working_leave_days
+from attendance_logic import current_shift_date, employee_leave_balance, employee_monthly_summary, employee_shift_date_status, employee_work_start_date, internship_end_date, is_assignment_complete, is_working_day, mark_missed_shift_absent, working_leave_days
 from database import SessionLocal
 from deps import get_current_user
 from models import Attendance, Employee, Leave
@@ -21,12 +21,20 @@ def get_db():
         db.close()
 
 
+def mark_current_missed_shift(db: Session, employee):
+    if not is_assignment_complete(employee):
+        return False
+    return mark_missed_shift_absent(db, employee, current_shift_date(employee.shift))
+
+
 @router.get("/dashboard")
 def employee_dashboard(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     today = date.today()
+    if mark_current_missed_shift(db, current_user):
+        db.commit()
 
     approved_leaves = db.query(Leave).filter(
         Leave.employee_id == current_user.id,
@@ -49,8 +57,6 @@ def employee_dashboard(
     total_attendance_days = sum(1 for record in attendance_records if is_working_day(record.date))
 
     today_status = employee_shift_date_status(db, current_user, today)
-    if today_status == "Absent":
-        today_status = "Not Marked"
 
     return {
         "employee_id": current_user.id,
@@ -112,6 +118,9 @@ def monthly_summary(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if mark_current_missed_shift(db, current_user):
+        db.commit()
+
     return {
         "month": month,
         "year": year,

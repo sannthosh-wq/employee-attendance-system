@@ -63,11 +63,16 @@ class Leave(Base):
 
     start_date = Column(Date)
     end_date = Column(Date)
+    from_date = Column(Date)
+    to_date = Column(Date)
     leave_date = Column(Date)
 
     reason = Column(String)
     leave_type = Column(String, nullable=True)
+    custom_reason = Column(Text, nullable=True)
+    additional_comments = Column(Text, nullable=True)
     status = Column(String, default="pending")
+    applied_at = Column(TIMESTAMP, default=datetime.utcnow)
 
     cancelled_at = Column(TIMESTAMP, nullable=True)
 
@@ -183,3 +188,16 @@ class PayrollDeduction(Base):
     name = Column(String, nullable=False)
     amount = Column(Numeric(12, 2), nullable=False, default=0)
     payroll = relationship("Payroll", back_populates="deductions")
+
+
+class AttritionPrediction(Base):
+    __tablename__ = "attrition_predictions"
+    __table_args__ = (
+        Index("ix_attrition_predictions_employee_date", "employee_id", "predicted_on"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), index=True, nullable=False)
+    risk_score = Column(Float, nullable=False, default=0.0)
+    risk_level = Column(String, nullable=False)
+    predicted_on = Column(TIMESTAMP, default=datetime.utcnow, index=True)

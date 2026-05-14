@@ -1,7 +1,7 @@
-let loginType = "employee";   // default
+let loginType = "employee";
+const API_BASE = "http://127.0.0.1:8000";
 
 function setLoginType(type) {
-
     loginType = type;
 
     const employeeBtn = document.getElementById("employeeBtn");
@@ -16,53 +16,73 @@ function setLoginType(type) {
     }
 }
 
-
 async function login() {
-
-    const email = document.getElementById("email").value;
+    const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
 
-    const response = await fetch("http://127.0.0.1:8001/auth/login", {
-        method: "POST",
-        headers:{
-            "Content-Type":"application/json"
-        },
-        body: JSON.stringify({
-            email,
-            password
-        })
-    });
+    if (!email || !password) {
+        showLoginMessage("Please enter email and password.", "error");
+        return;
+    }
 
-    const data = await response.json();
+    setLoginLoading(true);
 
-    if(response.ok){
+    try {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            showLoginMessage(data.detail || "Login failed. Please try again.", "error");
+            return;
+        }
 
         const payload = JSON.parse(atob(data.access_token.split(".")[1]));
 
-        // 🔥 role validation
         if (loginType === "admin" && !["admin", "super_admin"].includes(payload.role)) {
-            alert("This is not an admin account");
+            showLoginMessage("This is not an admin account.", "error");
             return;
         }
 
         if (loginType === "employee" && ["admin", "super_admin"].includes(payload.role)) {
-            alert("Please use Admin Login");
+            showLoginMessage("Please use Admin Login.", "error");
             return;
         }
 
         localStorage.setItem("token", data.access_token);
+        showLoginMessage("Login successful. Redirecting...", "success");
 
-        alert("Login Successful");
-
-        if(["admin", "super_admin"].includes(payload.role)){
-            window.location.href = "admin.html";
-        }
-        else{
-            window.location.href = "dashboard.html";
-        }
-
+        window.location.href = ["admin", "super_admin"].includes(payload.role)
+            ? "admin.html"
+            : "dashboard.html";
+    } catch (error) {
+        showLoginMessage("Cannot connect to FastAPI. Please make sure http://127.0.0.1:8000 is running.", "error");
+    } finally {
+        setLoginLoading(false);
     }
-    else{
-        alert(data.detail);
+}
+
+function showLoginMessage(message, type) {
+    const element = document.getElementById("loginMessage");
+    if (!element) {
+        alert(message);
+        return;
     }
+
+    element.textContent = message;
+    element.className = `form-message ${type}`;
+}
+
+function setLoginLoading(isLoading) {
+    const button = document.getElementById("signInButton");
+    if (!button) return;
+
+    button.disabled = isLoading;
+    button.textContent = isLoading ? "Signing In..." : "Sign In";
 }
