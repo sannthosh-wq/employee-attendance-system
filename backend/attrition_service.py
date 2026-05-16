@@ -11,8 +11,8 @@ except ImportError:  # pragma: no cover - handled at runtime for environments be
 from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session
 
-from attendance_logic import approved_leave_on, attendance_day_credit, employee_work_start_date, is_working_day, working_leave_days
-from models import Attendance, AttritionPrediction, Employee, Leave, SalaryStructure
+from .attendance_logic import approved_leave_on, attendance_day_credit, employee_work_start_date, is_working_day, working_leave_days
+from .models import Attendance, AttritionPrediction, Employee, Leave, SalaryStructure
 
 
 MODEL_DIR = Path(__file__).resolve().parent / "ml_models"

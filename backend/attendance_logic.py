@@ -5,7 +5,7 @@ from math import ceil
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from models import Attendance, AttendancePunch, Employee, Leave
+from .models import Attendance, AttendancePunch, Employee, Leave
 
 
 VALID_SHIFTS = {"morning", "night"}

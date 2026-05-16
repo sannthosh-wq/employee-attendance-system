@@ -3,9 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
-from deps import get_current_user
-from models import Employee, Notification
+from .database import SessionLocal
+from .deps import get_current_user
+from .models import Employee, Notification
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 

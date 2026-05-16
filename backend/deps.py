@@ -1,9 +1,9 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from database import SessionLocal
-from models import Employee
-from jwt_handler import SECRET_KEY, ALGORITHM
+from .database import SessionLocal
+from .models import Employee
+from .jwt_handler import SECRET_KEY, ALGORITHM
 
 security = HTTPBearer()
 

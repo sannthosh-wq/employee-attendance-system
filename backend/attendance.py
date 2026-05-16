@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database import SessionLocal
-from models import Attendance, AttendancePunch
+from .database import SessionLocal
+from .models import Attendance, AttendancePunch
 from datetime import date, datetime, timedelta
-from deps import get_current_user
-from schemas import AttendanceResponse
-from attendance_logic import (
+from .deps import get_current_user
+from .schemas import AttendanceResponse
+from .attendance_logic import (
     active_attendance_for_punch_out,
     approved_leave_on,
     attendance_day_credit,

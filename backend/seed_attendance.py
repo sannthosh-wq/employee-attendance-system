@@ -7,8 +7,8 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import text
 
-from database import SessionLocal, engine
-from models import Attendance, AttendancePunch, Employee, Leave
+from .database import SessionLocal, engine
+from .models import Attendance, AttendancePunch, Employee, Leave
 
 
 START_DATE = date(2026, 1, 1)

@@ -5,16 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from database import engine, Base
+from .database import engine, Base
 
-import auth
-import attendance
-import admin
-import leave
-import employee
-import notifications
-import payroll
-import ml
+from . import auth
+from . import attendance
+from . import admin
+from . import leave
+from . import employee
+from . import notifications
+from . import payroll
+from . import ml
 
 Base.metadata.create_all(bind=engine)
 

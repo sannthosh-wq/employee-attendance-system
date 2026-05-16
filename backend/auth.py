@@ -3,12 +3,12 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database import SessionLocal
-from models import Employee, PasswordReset
-from schemas import ForgotPasswordSchema, LoginSchema, RegisterSchema, ResetPasswordSchema
-from utils import hash_password, verify_password
-from jwt_handler import create_access_token
-from attendance_logic import is_internship_over
+from .database import SessionLocal
+from .models import Employee, PasswordReset
+from .schemas import ForgotPasswordSchema, LoginSchema, RegisterSchema, ResetPasswordSchema
+from .utils import hash_password, verify_password
+from .jwt_handler import create_access_token
+from .attendance_logic import is_internship_over
 
 router = APIRouter(
     prefix="/auth",

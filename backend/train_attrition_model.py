@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 import joblib
 
 from attrition_service import FEATURE_NAMES, MODEL_DIR, MODEL_META_PATH, MODEL_PATH, employee_attrition_features, employees_for_prediction, feature_vector, heuristic_risk
-from database import SessionLocal
+from .database import SessionLocal
 
 
 def load_labels(path: str | None) -> dict[int, int]:

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from attendance_logic import employee_monthly_summary
-from models import Employee, Payroll, PayrollAllowance, PayrollDeduction, SalaryStructure
+from .attendance_logic import employee_monthly_summary
+from .models import Employee, Payroll, PayrollAllowance, PayrollDeduction, SalaryStructure
 
 
 COMPANY_NAME = "Employee Attendance System"

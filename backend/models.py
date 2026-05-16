@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Date, Interval, Boolean, Text, Numeric, UniqueConstraint, Float, Index
 from sqlalchemy.orm import relationship
-from database import Base
+from .database import Base
 
 class Employee(Base):
     __tablename__ = "employees"

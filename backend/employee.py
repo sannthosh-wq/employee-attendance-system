@@ -5,10 +5,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from attendance_logic import auto_close_stale_active_attendance, current_shift_date, employee_leave_balance, employee_monthly_summary, employee_today_status, employee_work_start_date, get_shift_window, internship_end_date, is_assignment_complete, is_working_day, mark_missed_shift_absent, working_leave_days
-from database import SessionLocal
-from deps import get_current_user
-from models import Attendance, Employee, Leave
+from .attendance_logic import auto_close_stale_active_attendance, current_shift_date, employee_leave_balance, employee_monthly_summary, employee_today_status, employee_work_start_date, get_shift_window, internship_end_date, is_assignment_complete, is_working_day, mark_missed_shift_absent, working_leave_days
+from .database import SessionLocal
+from .deps import get_current_user
+from .models import Attendance, Employee, Leave
 
 router = APIRouter(prefix="/employee")
 

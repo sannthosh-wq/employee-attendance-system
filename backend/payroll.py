@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
-from deps import get_current_user
-from models import Employee, Payroll, SalaryStructure
-from payroll_service import create_salary_revision, generate_payslip_pdf, process_monthly_payroll, revise_salary_structure
-from schemas import PayrollProcessSchema, PayrollResponse, SalaryStructureCreateSchema, SalaryStructureResponse, SalaryStructureUpdateSchema
+from .database import SessionLocal
+from .deps import get_current_user
+from .models import Employee, Payroll, SalaryStructure
+from .payroll_service import create_salary_revision, generate_payslip_pdf, process_monthly_payroll, revise_salary_structure
+from .schemas import PayrollProcessSchema, PayrollResponse, SalaryStructureCreateSchema, SalaryStructureResponse, SalaryStructureUpdateSchema
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
 

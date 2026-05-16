@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from attrition_service import model_status, predict_attrition
-from database import SessionLocal
-from deps import get_current_user
+from .attrition_service import model_status, predict_attrition
+from .database import SessionLocal
+from .deps import get_current_user
 
 router = APIRouter(prefix="/ml", tags=["Machine Learning"])
 
