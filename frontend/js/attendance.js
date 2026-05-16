@@ -1,5 +1,5 @@
 const token = localStorage.getItem("token");
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://employee-attendance-system-7.onrender.com";
 let activeEmployeeAttendanceFilter = "date";
 
 if (!token) {

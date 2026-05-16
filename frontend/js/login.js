@@ -1,5 +1,5 @@
 let loginType = "employee";
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://employee-attendance-system-7.onrender.com";
 
 function setLoginType(type) {
     loginType = type;
