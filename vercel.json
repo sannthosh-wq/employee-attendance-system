@@ -1,3 +1,5 @@
 {
-    "outputDirectory": "frontend"
+    "routes": [
+        { "src": "/", "dest": "/frontend/login.html" }
+    ]
 }
