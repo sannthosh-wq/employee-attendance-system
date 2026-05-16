@@ -27,7 +27,39 @@
             </div>
         </div>
 
+        <div class="card employee-table-card attendance-self-filter-card">
+            <div class="section-heading">
+                <h3>Attendance Filter</h3>
+                <span class="badge" id="employeeAttendanceFilterLabel">Date</span>
+            </div>
+
+            <div class="status-tabs employee-attendance-tabs">
+                <button type="button" class="secondary active" id="employeeAttendanceDateBtn" onclick="filterEmployeeAttendance('date')">Date</button>
+                <button type="button" class="secondary" id="employeeAttendanceMonthBtn" onclick="filterEmployeeAttendance('month')">Month</button>
+                <button type="button" class="secondary" id="employeeAttendanceYearBtn" onclick="filterEmployeeAttendance('year')">Year</button>
+            </div>
+
+            <div class="form-grid employee-attendance-filter-grid">
+                <div id="employeeAttendanceDateField">
+                    <label>Date</label>
+                    <input type="date" id="employeeAttendanceDate" onchange="loadAttendance()">
+                </div>
+                <div id="employeeAttendanceMonthField">
+                    <label>Month</label>
+                    <input type="month" id="employeeAttendanceMonth" onchange="loadAttendance()">
+                </div>
+                <div id="employeeAttendanceYearField">
+                    <label>Year</label>
+                    <input type="number" id="employeeAttendanceYear" min="2000" max="2100" onchange="loadAttendance()">
+                </div>
+            </div>
+        </div>
+
         <div class="card table-card employee-table-card">
+            <div class="section-heading">
+                <h3>Filtered Records</h3>
+                <span class="badge success" id="employeeAttendanceRecordCount">0 Records</span>
+            </div>
             <div class="table-wrap">
                 <table>
                     <thead>

@@ -10,6 +10,7 @@ from attendance_logic import (
     approved_leave_on,
     attendance_day_credit,
     attendance_total_hours,
+    auto_close_stale_active_attendance,
     calculate_worked_time,
     employee_work_start_date,
     get_shift_attendance,
@@ -95,6 +96,8 @@ def punch_in(
     db: Session = Depends(get_db)
 ):
     require_attendance_user(current_user)
+    if auto_close_stale_active_attendance(db):
+        db.commit()
 
     now = datetime.now()
     shift_date, shift_start, grace_time, shift_end = get_shift_window(now, current_user.shift)
@@ -130,10 +133,10 @@ def punch_in(
         ))
         attendance_credit = attendance_day_credit(record, current_user.shift)
         half_day_deducted = attendance_credit == 0.5
-        message = "Punch in successful"
+        message = "Punch in successful. Your shift has started"
 
         if half_day_deducted:
-            message = "Punch in successful. Half day attendance is deducted because you punched in more than 3 hours after shift start"
+            message = "Punch in successful. Your shift has started. Half day attendance is deducted because you punched in more than 3 hours after shift start"
 
         db.commit()
 
@@ -169,10 +172,10 @@ def punch_in(
 
         attendance_credit = attendance_day_credit(record, current_user.shift)
         half_day_deducted = attendance_credit == 0.5
-        message = "Punch in successful"
+        message = "Punch in successful. Your shift has started"
 
         if half_day_deducted:
-            message = "Punch in successful. Half day attendance is deducted because you punched in more than 3 hours after shift start"
+            message = "Punch in successful. Your shift has started. Half day attendance is deducted because you punched in more than 3 hours after shift start"
 
         db.commit()
 
@@ -203,7 +206,7 @@ def punch_in(
     db.commit()
 
     return {
-        "message": "Break ended. Punch in recorded",
+        "message": "Punch in successful. You are back from break",
         "is_late": record.is_late,
         "type": "break_return"
     }
@@ -215,6 +218,8 @@ def punch_out(
     db: Session = Depends(get_db)
 ):
     require_attendance_user(current_user)
+    if auto_close_stale_active_attendance(db):
+        db.commit()
 
     now = datetime.now()
     (
@@ -250,9 +255,9 @@ def punch_out(
     db.commit()
 
     if now < shift_end:
-        message = "Punch out recorded. It will be treated as logout unless you punch in again after a break"
+        message = "Punch out successful. You are on break. Punch in again when you resume work"
     else:
-        message = "Punch out successful. Shift logout recorded"
+        message = "Punch out successful. Your shift has ended"
 
     return {
         "message": message,
@@ -263,20 +268,31 @@ def punch_out(
 
 @router.get("/my-attendance", response_model=list[AttendanceResponse])
 def my_attendance(
+    start_date: date | None = None,
+    end_date: date | None = None,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    start_date = employee_work_start_date(current_user)
-    end_date = date.today()
-    if intern_end := internship_end_date(current_user):
-        end_date = min(end_date, intern_end)
+    if auto_close_stale_active_attendance(db):
+        db.commit()
 
-    if end_date < start_date:
+    work_start_date = employee_work_start_date(current_user)
+    latest_date = date.today()
+    if intern_end := internship_end_date(current_user):
+        latest_date = min(latest_date, intern_end)
+
+    if end_date and start_date and end_date < start_date:
+        raise HTTPException(status_code=400, detail="End date cannot be before start date")
+
+    history_start = max(start_date or work_start_date, work_start_date)
+    history_end = min(end_date or latest_date, latest_date)
+
+    if history_end < history_start:
         return []
 
-    current = start_date
+    current = history_start
     created_absences = 0
-    while current <= end_date:
+    while current <= history_end:
         if mark_missed_shift_absent(db, current_user, current):
             created_absences += 1
         current += timedelta(days=1)
@@ -288,16 +304,16 @@ def my_attendance(
         db.query(Attendance)
         .filter(
             Attendance.employee_id == current_user.id,
-            Attendance.date >= start_date,
-            Attendance.date <= end_date,
+            Attendance.date >= history_start,
+            Attendance.date <= history_end,
         )
         .all()
     )
     records_by_date = {record.date: record for record in records}
     result = []
-    current = end_date
+    current = history_end
 
-    while current >= start_date:
+    while current >= history_start:
         result.append(attendance_history_row(db, current_user, current, records_by_date.get(current)))
         current -= timedelta(days=1)
 

@@ -7,6 +7,7 @@ if (!token) {
 }
 
 const currentDate = new Date();
+let currentPunchActions = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     setDefaultMonthYear();
@@ -62,6 +63,8 @@ async function loadDashboard() {
         setText("leaveUsed", data.leave_balance?.approved_days ?? 0);
         setProfilePhoto(data.profile_photo);
         setStatusBadge("todayStatus", data.today_status);
+        currentPunchActions = data;
+        updatePunchActionState(data.today_status, data);
         const canStartWork = data.today_status !== "Joined Today - Work Starts Tomorrow";
         setVisible("punch", data.is_assigned && canStartWork);
         setVisible("apply-leave", data.is_assigned && canStartWork);
@@ -95,23 +98,37 @@ function applyInternLabels(data) {
 
 async function punchIn() {
     try {
+        setPunchLoading(true);
         const data = await apiRequest("/attendance/punch-in", { method: "POST" });
 
-        alert(data.message);
-        refreshEmployeeViews();
+        showPunchMessage(data.message || "Punch in successful", "success");
+        currentPunchActions = { can_punch_in: false, can_punch_out: true };
+        updatePunchActionState("Working (Punched In)", currentPunchActions);
+        setStatusBadge("todayStatus", "Working (Punched In)");
+        await refreshEmployeeViews();
     } catch (error) {
-        alert(error.message);
+        showPunchMessage(error.message, "error");
+    } finally {
+        setPunchLoading(false);
     }
 }
 
 async function punchOut() {
     try {
+        setPunchLoading(true);
         const data = await apiRequest("/attendance/punch-out", { method: "POST" });
 
-        alert(data.message);
-        refreshEmployeeViews();
+        showPunchMessage(data.message || "Punch out successful", "success");
+        currentPunchActions = data.type === "punch_out"
+            ? { can_punch_in: true, can_punch_out: false }
+            : { can_punch_in: false, can_punch_out: false };
+        updatePunchActionState("Present", currentPunchActions);
+        setStatusBadge("todayStatus", "Present");
+        await refreshEmployeeViews();
     } catch (error) {
-        alert(error.message);
+        showPunchMessage(error.message, "error");
+    } finally {
+        setPunchLoading(false);
     }
 }
 
@@ -303,10 +320,68 @@ function applySummaryData(data) {
     setText("attendancePercentage", data.attendance_percentage + "%");
 }
 
-function refreshEmployeeViews() {
-    loadDashboard();
-    loadAttendance();
-    loadSummary();
+async function refreshEmployeeViews() {
+    await Promise.all([
+        loadDashboard(),
+        loadAttendance(),
+        loadSummary()
+    ]);
+}
+
+function updatePunchActionState(status, actions = currentPunchActions) {
+    const punchInButtons = document.querySelectorAll(".punch-in-button");
+    const punchOutButtons = document.querySelectorAll(".punch-out-button");
+    if (!punchInButtons.length && !punchOutButtons.length) return;
+
+    const canPunchIn = actions && typeof actions.can_punch_in === "boolean"
+        ? actions.can_punch_in
+        : ["Absent", "No Attendance", "Present"].includes(status);
+    const canPunchOut = actions && typeof actions.can_punch_out === "boolean"
+        ? actions.can_punch_out
+        : status === "Working (Punched In)";
+
+    punchInButtons.forEach(button => {
+        button.disabled = !canPunchIn;
+        button.title = button.disabled ? punchActionHelp(status, "in") : "";
+    });
+
+    punchOutButtons.forEach(button => {
+        button.disabled = !canPunchOut;
+        button.title = button.disabled ? punchActionHelp(status, "out") : "";
+    });
+}
+
+function punchActionHelp(status, action) {
+    if (status === "Working (Punched In)" && action === "in") {
+        return "You are already punched in";
+    }
+    if (action === "out") {
+        return "Punch in first before punching out";
+    }
+    return "Punch action is not available for the current status";
+}
+
+function setPunchLoading(isLoading) {
+    if (!isLoading) {
+        const status = document.getElementById("todayStatus")?.innerText;
+        updatePunchActionState(status, currentPunchActions);
+        return;
+    }
+
+    document.querySelectorAll(".punch-in-button, .punch-out-button").forEach(button => {
+        button.disabled = true;
+    });
+}
+
+function showPunchMessage(message, type) {
+    const element = document.getElementById("punchMessage");
+    if (!element) {
+        alert(message);
+        return;
+    }
+
+    element.textContent = message;
+    element.className = `form-message ${type}`;
 }
 
 function setDefaultMonthYear() {

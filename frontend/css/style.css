@@ -3137,7 +3137,7 @@ th:last-child {
 }
 
 /* Apply leave form */
-.apply-leave-card {
+.employee-page .card.apply-leave-card {
     overflow: hidden;
     border-color: rgba(203, 213, 225, 0.92);
     background:
@@ -3145,15 +3145,128 @@ th:last-child {
         linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
 }
 
+.employee-leave-panel,
+.monthly-summary-filter-card,
+.monthly-summary-card,
+.employee-notification-card,
+.employee-leave-history-card {
+    margin-bottom: 18px;
+}
+
+.employee-leave-panel .section-heading,
+.monthly-summary-filter-card .section-heading,
+.monthly-summary-card .section-heading,
+.employee-leave-history-card .section-heading {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.82);
+}
+
+.employee-leave-panel .shift-metrics {
+    margin-bottom: 18px;
+}
+
+.employee-leave-panel .shift-metrics div {
+    min-height: 104px;
+    background:
+        linear-gradient(135deg, rgba(216, 246, 242, 0.48), rgba(255, 255, 255, 0) 48%),
+        rgba(255, 255, 255, 0.84);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.employee-leave-panel .shift-metrics strong {
+    font-size: 30px;
+}
+
 .leave-form {
     display: grid;
     gap: 16px;
     margin-top: 18px;
-    padding-bottom: 120px;
+}
+
+.leave-form .form-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+    gap: 14px 16px;
+}
+
+.leave-form button[type="submit"] {
+    min-height: 50px;
+    margin-top: 14px;
+    background: linear-gradient(135deg, #0b7a75, #3157d5);
+    box-shadow: 0 14px 28px rgba(11, 122, 117, 0.18);
+}
+
+#apply-leave > button,
+#monthly-summary > button {
+    margin-top: 16px;
 }
 
 .form-field {
     min-width: 0;
+}
+
+.employee-notification-card ul {
+    display: grid;
+    gap: 10px;
+}
+
+.employee-notification-card li {
+    min-height: 58px;
+    padding: 12px;
+    border: 1px solid #dbe6ef;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.employee-page .card.monthly-summary-filter-card {
+    background:
+        linear-gradient(135deg, rgba(49, 87, 213, 0.08), rgba(11, 122, 117, 0.10)),
+        linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.monthly-summary-filter-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr)) minmax(150px, 0.7fr);
+    align-items: end;
+}
+
+.monthly-summary-action {
+    display: flex;
+    align-items: end;
+    height: 100%;
+}
+
+.monthly-summary-action button {
+    min-height: 44px;
+}
+
+.monthly-summary-card .summary-list {
+    grid-template-columns: repeat(4, minmax(170px, 1fr));
+}
+
+.employee-page .monthly-summary-card .summary-list p {
+    min-height: 112px;
+    align-content: space-between;
+    border-color: #d7e2ec;
+    background:
+        linear-gradient(135deg, rgba(216, 246, 242, 0.34), rgba(255, 255, 255, 0) 52%),
+        rgba(255, 255, 255, 0.82);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.monthly-summary-card .summary-list span {
+    font-size: 24px;
+}
+
+.employee-page .monthly-summary-card .attendance-percent-card {
+    border-color: rgba(11, 122, 117, 0.28);
+    background:
+        linear-gradient(135deg, rgba(11, 122, 117, 0.12), rgba(49, 87, 213, 0.10)),
+        #ffffff;
+}
+
+.monthly-summary-card .attendance-percent-card span {
+    color: var(--primary);
+    font-size: 30px;
 }
 
 textarea {
@@ -3390,6 +3503,20 @@ textarea:focus {
     min-width: 920px;
 }
 
+.attendance-self-filter-card {
+    margin-bottom: 18px;
+}
+
+.employee-attendance-tabs {
+    grid-template-columns: repeat(3, minmax(90px, 1fr));
+}
+
+.employee-attendance-filter-grid {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+    align-items: end;
+    margin-top: 14px;
+}
+
 .employee-table-card th {
     background: #edf4f8;
     color: #334155;
@@ -3505,6 +3632,18 @@ textarea:focus {
 
     .summary-list {
         grid-template-columns: 1fr;
+    }
+
+    .employee-attendance-filter-grid,
+    .employee-attendance-tabs,
+    .leave-form .form-grid,
+    .monthly-summary-filter-grid,
+    .monthly-summary-card .summary-list {
+        grid-template-columns: 1fr;
+    }
+
+    .employee-leave-panel .shift-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

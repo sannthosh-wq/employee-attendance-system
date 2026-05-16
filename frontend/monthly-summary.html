@@ -27,8 +27,16 @@
             </div>
         </div>
 
-        <div class="card employee-service-card">
-            <div class="form-grid">
+        <div class="card employee-service-card monthly-summary-filter-card">
+            <div class="section-heading">
+                <div>
+                    <h3>Summary Filter</h3>
+                    <p class="muted">Choose the month and year to review.</p>
+                </div>
+                <span class="badge success">Monthly</span>
+            </div>
+
+            <div class="form-grid monthly-summary-filter-grid">
                 <div>
                     <label>Select Month</label>
                     <input type="number" id="month" min="1" max="12" placeholder="Enter month">
@@ -37,22 +45,29 @@
                     <label>Select Year</label>
                     <input type="number" id="year" placeholder="Enter year">
                 </div>
+                <div class="monthly-summary-action">
+                    <button onclick="loadSummary()">Get Summary</button>
+                </div>
             </div>
-
-            <button onclick="loadSummary()">Get Summary</button>
         </div>
 
-        <div class="card summary-card">
-            <h3>Summary Details</h3>
+        <div class="card summary-card monthly-summary-card">
+            <div class="section-heading">
+                <div>
+                    <h3>Summary Details</h3>
+                    <p class="muted">Attendance totals for the selected period.</p>
+                </div>
+                <span class="badge" id="monthlySummaryPeriod">This Month</span>
+            </div>
             <div class="summary-list">
-                <p><strong>Working Days:</strong> <span id="workingDays">0</span></p>
-                <p><strong>Approved Leave Days:</strong> <span id="leaveDays">0</span></p>
-                <p><strong>Effective Working Days:</strong> <span id="effectiveDays">0</span></p>
-                <p><strong>Present Days:</strong> <span id="presentDays">0</span></p>
-                <p><strong>Absent Days:</strong> <span id="absentDays">0</span></p>
-                <p><strong>Sunday Extra Work:</strong> <span id="extraWork">0 days / 0 hrs</span></p>
-                <p><strong>Total Hours Worked:</strong> <span id="totalHours">0</span></p>
-                <p><strong>Attendance Percentage:</strong> <span id="attendancePercentage">0%</span></p>
+                <p><strong>Working Days</strong> <span id="workingDays">0</span></p>
+                <p><strong>Approved Leave Days</strong> <span id="leaveDays">0</span></p>
+                <p><strong>Effective Working Days</strong> <span id="effectiveDays">0</span></p>
+                <p><strong>Present Days</strong> <span id="presentDays">0</span></p>
+                <p><strong>Absent Days</strong> <span id="absentDays">0</span></p>
+                <p><strong>Sunday Extra Work</strong> <span id="extraWork">0 days / 0 hrs</span></p>
+                <p><strong>Total Hours Worked</strong> <span id="totalHours">0</span></p>
+                <p class="attendance-percent-card"><strong>Attendance Percentage</strong> <span id="attendancePercentage">0%</span></p>
             </div>
         </div>
     </div>

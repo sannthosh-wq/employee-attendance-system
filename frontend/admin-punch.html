@@ -38,9 +38,10 @@
         <h3>Admin Attendance</h3>
         <p class="muted">Punch in and punch out for your own admin attendance record.</p>
         <div class="button-row">
-            <button onclick="punchIn()">Punch In</button>
-            <button class="secondary" onclick="punchOut()">Punch Out</button>
+            <button class="punch-in-button" onclick="punchIn()">Punch In</button>
+            <button class="secondary punch-out-button" onclick="punchOut()">Punch Out</button>
         </div>
+        <div id="punchMessage" class="form-message" aria-live="polite"></div>
     </div>
 </div>
 

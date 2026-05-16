@@ -17,6 +17,7 @@ let lateEarlyChart = null;
 let shiftSplitChart = null;
 let employeeHoursChart = null;
 let currentAdmin = null;
+let currentPunchActions = null;
 let activeStatusFilter = "all";
 let activeEmployeeShiftFilter = "all";
 let activeSummaryShift = "morning";
@@ -121,9 +122,12 @@ async function apiRequest(path, options = {}) {
     return data;
 }
 
-async function loadAdminProfile() {
+async function loadAdminProfile(forceRefresh = false) {
     try {
-        const data = currentAdmin || await apiRequest("/employee/dashboard");
+        const data = forceRefresh || !currentAdmin
+            ? await apiRequest("/employee/dashboard")
+            : currentAdmin;
+        currentAdmin = data;
 
         setText("adminName", data.name);
         setText("adminEmail", data.email);
@@ -138,6 +142,8 @@ async function loadAdminProfile() {
         setText("adminApprovedLeaveDays", data.total_approved_leave_days);
         setText("adminLeaveBalance", data.leave_balance?.remaining_days ?? 0);
         setStatusBadge("adminTodayStatus", data.today_status);
+        currentPunchActions = data;
+        updatePunchActionState(data.today_status, data);
     } catch (error) {
         alert(error.message);
     }
@@ -442,23 +448,37 @@ async function loadShiftSummary() {
 
 async function punchIn() {
     try {
+        setPunchLoading(true);
         const data = await apiRequest("/attendance/punch-in", { method: "POST" });
 
-        alert(data.message);
-        refreshAdminDashboard();
+        showPunchMessage(data.message || "Punch in successful", "success");
+        currentPunchActions = { can_punch_in: false, can_punch_out: true };
+        updatePunchActionState("Working (Punched In)", currentPunchActions);
+        setStatusBadge("adminTodayStatus", "Working (Punched In)");
+        await refreshAdminDashboard();
     } catch (error) {
-        alert(error.message);
+        showPunchMessage(error.message, "error");
+    } finally {
+        setPunchLoading(false);
     }
 }
 
 async function punchOut() {
     try {
+        setPunchLoading(true);
         const data = await apiRequest("/attendance/punch-out", { method: "POST" });
 
-        alert(data.message);
-        refreshAdminDashboard();
+        showPunchMessage(data.message || "Punch out successful", "success");
+        currentPunchActions = data.type === "punch_out"
+            ? { can_punch_in: true, can_punch_out: false }
+            : { can_punch_in: false, can_punch_out: false };
+        updatePunchActionState("Present", currentPunchActions);
+        setStatusBadge("adminTodayStatus", "Present");
+        await refreshAdminDashboard();
     } catch (error) {
-        alert(error.message);
+        showPunchMessage(error.message, "error");
+    } finally {
+        setPunchLoading(false);
     }
 }
 
@@ -751,6 +771,8 @@ function buildAnalyticsModel(report, attendanceRecords, month, year) {
     const selectedRole = getValue("analyticsRole") || "all";
     const selectedEmployee = getValue("analyticsEmployee") || "all";
     const activeEmployees = analyticsActiveEmployees(month, year);
+    const today = new Date();
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const employeeMap = {};
 
     activeEmployees.forEach(emp => {
@@ -771,6 +793,7 @@ function buildAnalyticsModel(report, attendanceRecords, month, year) {
         if (!recordDate) return false;
 
         return filteredEmployeeIds.has(record.employee_id)
+            && recordDate <= todayOnly
             && recordDate.getMonth() + 1 === Number(month)
             && recordDate.getFullYear() === Number(year);
     });
@@ -875,9 +898,13 @@ function internshipEndDate(employee) {
 
 function buildDailyAnalytics(records, month, year) {
     const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
+    const today = new Date();
+    const isCurrentMonth = Number(month) === today.getMonth() + 1 && Number(year) === today.getFullYear();
+    const isFutureMonth = new Date(Number(year), Number(month) - 1, 1) > new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const lastDay = isFutureMonth ? 0 : isCurrentMonth ? Math.min(daysInMonth, today.getDate()) : daysInMonth;
     const daily = [];
 
-    for (let day = 1; day <= daysInMonth; day += 1) {
+    for (let day = 1; day <= lastDay; day += 1) {
         const current = new Date(Number(year), Number(month) - 1, day);
         const id = `${year}-${pad2(month)}-${pad2(day)}`;
         daily.push({
@@ -1091,6 +1118,7 @@ async function loadLeaves() {
                     <td>${formatLabel(leave.employee_role)}</td>
                     <td>${leave.total_days}</td>
                     <td>${leave.leave_balance?.remaining_days ?? "-"}</td>
+                    <td>${leave.leave_type || "-"}</td>
                     <td>${leave.start_date}</td>
                     <td>${leave.end_date}</td>
                     <td>${leave.reason}</td>
@@ -1100,7 +1128,7 @@ async function loadLeaves() {
             `;
         });
 
-        emptyTable(table, 11);
+        emptyTable(table, 12);
     } catch (error) {
         alert(error.message);
     }
@@ -2215,6 +2243,8 @@ function renderEmployeeAnalyticsTable(records) {
             const active = Boolean(record.login_time && !record.logout_time);
             table.innerHTML += `
                 <tr>
+                    <td>${record.employee_name || "-"}<br><span class="muted">${record.employee_code || record.employee_id || "-"}</span></td>
+                    <td>${formatLabel(record.shift)}</td>
                     <td>${record.date}</td>
                     <td>${attendanceStatusBadge(record)}</td>
                     <td>${formatDateTime(record.login_time)}</td>
@@ -2228,7 +2258,7 @@ function renderEmployeeAnalyticsTable(records) {
 
     setText("employeeRecordCount", `${records.length} Records`);
     updateEmployeeAnalyticsPagination(records.length, pageSize, totalPages, startIndex, visibleRecords.length);
-    emptyTable(table, 7);
+    emptyTable(table, 9);
 }
 
 function employeeAnalyticsPageSize() {
@@ -2433,17 +2463,19 @@ function dailyChartOptions({ stacked = false } = {}) {
     return options;
 }
 
-function refreshAdminDashboard() {
-    loadAdminProfile();
-    loadDashboard();
-    loadShiftSummary();
-    loadEmployees();
-    loadAllAttendance();
-    loadAdminAttendanceHistory();
-    loadAdminMonthlySummary();
-    loadLeaves();
-    loadNotifications();
-    loadEmployeeGrowth();
+async function refreshAdminDashboard() {
+    await Promise.all([
+        loadAdminProfile(true),
+        loadDashboard(),
+        loadShiftSummary(),
+        loadEmployees(),
+        loadAllAttendance(),
+        loadAdminAttendanceHistory(),
+        loadAdminMonthlySummary(),
+        loadLeaves(),
+        loadNotifications(),
+        loadEmployeeGrowth()
+    ]);
 }
 
 function formatStatus(status) {
@@ -2638,4 +2670,60 @@ function setVisible(id, visible) {
     if (element) {
         element.style.display = visible ? "" : "none";
     }
+}
+
+function updatePunchActionState(status, actions = currentPunchActions) {
+    const punchInButtons = document.querySelectorAll(".punch-in-button");
+    const punchOutButtons = document.querySelectorAll(".punch-out-button");
+    if (!punchInButtons.length && !punchOutButtons.length) return;
+
+    const canPunchIn = actions && typeof actions.can_punch_in === "boolean"
+        ? actions.can_punch_in
+        : ["Absent", "No Attendance", "Present"].includes(status);
+    const canPunchOut = actions && typeof actions.can_punch_out === "boolean"
+        ? actions.can_punch_out
+        : status === "Working (Punched In)";
+
+    punchInButtons.forEach(button => {
+        button.disabled = !canPunchIn;
+        button.title = button.disabled ? punchActionHelp(status, "in") : "";
+    });
+
+    punchOutButtons.forEach(button => {
+        button.disabled = !canPunchOut;
+        button.title = button.disabled ? punchActionHelp(status, "out") : "";
+    });
+}
+
+function punchActionHelp(status, action) {
+    if (status === "Working (Punched In)" && action === "in") {
+        return "You are already punched in";
+    }
+    if (action === "out") {
+        return "Punch in first before punching out";
+    }
+    return "Punch action is not available for the current status";
+}
+
+function setPunchLoading(isLoading) {
+    if (!isLoading) {
+        const status = document.getElementById("adminTodayStatus")?.innerText;
+        updatePunchActionState(status, currentPunchActions);
+        return;
+    }
+
+    document.querySelectorAll(".punch-in-button, .punch-out-button").forEach(button => {
+        button.disabled = true;
+    });
+}
+
+function showPunchMessage(message, type) {
+    const element = document.getElementById("punchMessage");
+    if (!element) {
+        alert(message);
+        return;
+    }
+
+    element.textContent = message;
+    element.className = `form-message ${type}`;
 }

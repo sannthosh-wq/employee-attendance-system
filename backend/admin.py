@@ -17,6 +17,7 @@ from attendance_logic import (
     approved_leave_on,
     attendance_day_credit,
     attendance_total_hours,
+    auto_close_stale_active_attendance,
     employee_leave_balance,
     employee_monthly_summary,
     employee_shift_date_status,
@@ -398,11 +399,16 @@ def all_attendance(
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
+    if auto_close_stale_active_attendance(db):
+        db.commit()
 
     query = (
         db.query(Attendance, Employee)
         .join(Employee, Attendance.employee_id == Employee.id)
-        .filter(Employee.role != "super_admin")
+        .filter(
+            Employee.role != "super_admin",
+            Attendance.date <= date.today(),
+        )
     )
 
     if month:
@@ -419,10 +425,30 @@ def all_attendance(
     if employee_id:
         query = query.filter(Employee.id == employee_id)
 
-    records = query.order_by(Attendance.date.desc(), Attendance.login_time.desc()).all()
+    records = query.order_by(Attendance.date.desc(), Attendance.login_time.desc(), Attendance.id.desc()).all()
+    unique_records = {}
 
-    return [
-        {
+    for attendance, employee in records:
+        key = (employee.id, attendance.date)
+        existing = unique_records.get(key)
+
+        if not existing:
+            unique_records[key] = (attendance, employee)
+            continue
+
+        existing_attendance, _ = existing
+        current_has_punch = bool(attendance.login_time or attendance.logout_time)
+        existing_has_punch = bool(existing_attendance.login_time or existing_attendance.logout_time)
+
+        if current_has_punch and not existing_has_punch:
+            unique_records[key] = (attendance, employee)
+        elif current_has_punch == existing_has_punch and attendance.id > existing_attendance.id:
+            unique_records[key] = (attendance, employee)
+
+    rows_by_day = {}
+
+    for attendance, employee in unique_records.values():
+        rows_by_day[(employee.id, attendance.date)] = {
             "id": attendance.id,
             "employee_id": employee.id,
             "employee_code": employee.employee_code,
@@ -443,8 +469,67 @@ def all_attendance(
             "late_minutes": late_minutes(attendance, employee.shift),
             "left_early": attendance.left_early,
         }
-        for attendance, employee in records
-    ]
+
+    leave_query = (
+        db.query(Leave, Employee)
+        .join(Employee, Leave.employee_id == Employee.id)
+        .filter(
+            Employee.role != "super_admin",
+            Leave.status == "approved",
+        )
+    )
+
+    if shift != "all":
+        if shift == "morning":
+            leave_query = leave_query.filter(Employee.shift.in_(["morning", "day"]))
+        else:
+            leave_query = leave_query.filter(Employee.shift == shift)
+    if role != "all":
+        leave_query = leave_query.filter(Employee.role == role)
+    if employee_id:
+        leave_query = leave_query.filter(Employee.id == employee_id)
+
+    leave_rows = leave_query.all()
+    for leave, employee in leave_rows:
+        current = leave.start_date
+        while current <= leave.end_date:
+            if (
+                is_working_day(current)
+                and current <= date.today()
+                and (not month or current.month == month)
+                and (not year or current.year == year)
+            ):
+                key = (employee.id, current)
+                existing = rows_by_day.get(key)
+                existing_has_punch = bool(existing and (existing["login_time"] or existing["logout_time"]))
+
+                if not existing_has_punch:
+                    rows_by_day[key] = {
+                        "id": f"leave-{leave.id}-{current.isoformat()}",
+                        "employee_id": employee.id,
+                        "employee_code": employee.employee_code,
+                        "employee_name": employee.name,
+                        "email": employee.email,
+                        "role": employee.role,
+                        "shift": normalized_shift(employee.shift),
+                        "employment_type": employee.employment_type,
+                        "joined_at": employee.joined_at,
+                        "date": current,
+                        "login_time": None,
+                        "logout_time": None,
+                        "total_hours": "0:00:00",
+                        "status": "On Leave",
+                        "is_late": False,
+                        "late_minutes": 0,
+                        "left_early": False,
+                    }
+            current += timedelta(days=1)
+
+    return sorted(
+        rows_by_day.values(),
+        key=lambda item: (item["date"], item["login_time"] or datetime.min),
+        reverse=True,
+    )
 
 
 @router.get("/today-status")
@@ -453,6 +538,8 @@ def today_status(
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
+    if auto_close_stale_active_attendance(db):
+        db.commit()
 
     today = date.today()
     employees = db.query(Employee).order_by(Employee.id.asc()).all()
@@ -822,6 +909,8 @@ def admin_dashboard(
     db: Session = Depends(get_db),
 ):
     require_admin(current_user)
+    if auto_close_stale_active_attendance(db):
+        db.commit()
 
     today = date.today()
     shift_totals = build_shift_summary(db)
@@ -1203,6 +1292,16 @@ def daily_attendance_trend(
 
     month_start = date(year, month, 1)
     month_end = date(year, month, monthrange(year, month)[1])
+    today = date.today()
+    if month_start > today:
+        return {
+            "month": month,
+            "year": year,
+            "total_employees": 0,
+            "daily": [],
+        }
+
+    month_end = min(month_end, today)
     employees_query = db.query(Employee).filter(
         Employee.role != "super_admin",
         Employee.role.isnot(None),

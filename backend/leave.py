@@ -16,6 +16,29 @@ router = APIRouter(
 public_router = APIRouter(tags=["Leave"])
 
 VALID_LEAVE_TYPES = {"Casual", "Sick", "Earned", "Emergency"}
+SICK_REASONS = {
+    "Fever",
+    "Cold / Flu",
+    "Hospital Visit",
+    "Medical Check-up",
+    "Injury",
+    "Mental Health Break",
+    "Not Feeling Well",
+    "Need Rest",
+}
+EMERGENCY_REASONS = {
+    "Emergency",
+    "Family Emergency",
+    "Care for Sick Family Member",
+    "Urgent Personal Matter",
+}
+EARNED_REASONS = {
+    "Family Function",
+    "Wedding",
+    "Religious Ceremony",
+    "Travel",
+    "Moving House",
+}
 
 # ---------------- DB ----------------
 def get_db():
@@ -118,6 +141,35 @@ def can_update_leave(current_user, leave_owner, db: Session):
     return
 
 
+def leave_type_for_reason(reason: str | None, leave_type: str | None = None):
+    if leave_type in VALID_LEAVE_TYPES:
+        return leave_type
+
+    if reason in SICK_REASONS:
+        return "Sick"
+    if reason in EMERGENCY_REASONS:
+        return "Emergency"
+    if reason in EARNED_REASONS:
+        return "Earned"
+    return "Casual"
+
+
+def leave_payload(leave: Leave):
+    return {
+        "id": leave.id,
+        "start_date": leave.start_date,
+        "end_date": leave.end_date,
+        "from_date": leave.from_date,
+        "to_date": leave.to_date,
+        "reason": leave.reason,
+        "leave_type": leave_type_for_reason(leave.reason, leave.leave_type),
+        "custom_reason": leave.custom_reason,
+        "additional_comments": leave.additional_comments,
+        "status": leave.status,
+        "applied_at": leave.applied_at,
+    }
+
+
 # ---------------- APPLY LEAVE (NON-ADMIN ONLY) ----------------
 @public_router.post("/apply-leave")
 @router.post("/apply")
@@ -130,8 +182,8 @@ def apply_leave(
     require_leave_applicant(current_user)
     start_date = leave_data.from_date or leave_data.start_date
     end_date = leave_data.to_date or leave_data.end_date
-    leave_type = (leave_data.leave_type or "Casual").strip()
     reason = leave_data.reason.strip()
+    leave_type = leave_type_for_reason(reason, leave_data.leave_type.strip() if leave_data.leave_type else None)
     custom_reason = leave_data.custom_reason.strip() if leave_data.custom_reason else None
     additional_comments = leave_data.additional_comments.strip() if leave_data.additional_comments else None
 
@@ -222,9 +274,11 @@ def my_leaves(
 
     require_leave_applicant(current_user)
 
-    return db.query(Leave).filter(
+    leaves = db.query(Leave).filter(
         Leave.employee_id == current_user.id
-    ).all()
+    ).order_by(Leave.id.desc()).all()
+
+    return [leave_payload(leave) for leave in leaves]
 
 
 # ---------------- NON-ADMIN: MY LEAVE COUNT ----------------
@@ -280,7 +334,7 @@ def all_leaves(
             "to_date": leave.to_date,
             "total_days": working_leave_days(leave.start_date, leave.end_date),
             "leave_balance": employee_leave_balance(db, employee.id),
-            "leave_type": leave.leave_type,
+            "leave_type": leave_type_for_reason(leave.reason, leave.leave_type),
             "reason": leave.reason,
             "custom_reason": leave.custom_reason,
             "additional_comments": leave.additional_comments,

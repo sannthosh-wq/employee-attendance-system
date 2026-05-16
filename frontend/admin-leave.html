@@ -34,27 +34,117 @@
             </div>
         </div>
 
-        <div class="card">
-            <h3>Apply Leave</h3>
-            <label>Start Date</label>
-            <input type="date" id="startDate">
+        <div class="card apply-leave-card employee-leave-panel" id="apply-leave">
+            <div class="section-heading">
+                <div>
+                    <h3>Apply Leave</h3>
+                    <p class="muted">Submit a leave request for super admin approval.</p>
+                </div>
+                <span class="badge warning">Pending by default</span>
+            </div>
 
-            <label>End Date</label>
-            <input type="date" id="endDate">
+            <div class="shift-metrics">
+                <div><span>Monthly Allowance</span><strong id="leaveAllowance">0</strong></div>
+                <div><span>Used</span><strong id="leaveUsed">0</strong></div>
+                <div><span>Pending</span><strong id="leavePending">0</strong></div>
+                <div><span>Monthly Balance</span><strong id="leaveBalance">0</strong></div>
+            </div>
 
-            <label>Reason</label>
-            <input type="text" id="reason" placeholder="Enter reason">
+            <div id="leaveMessage" class="form-message" aria-live="polite"></div>
 
-            <button onclick="applyLeave()">Apply Leave</button>
+            <form id="leaveForm" class="leave-form">
+                <div class="form-grid">
+                    <div>
+                        <label for="leaveType">Leave Type</label>
+                        <select id="leaveType" required>
+                            <option value="">Select leave type</option>
+                            <option value="Casual">Casual</option>
+                            <option value="Sick">Sick</option>
+                            <option value="Earned">Earned</option>
+                            <option value="Emergency">Emergency</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="fromDate">From Date</label>
+                        <input type="date" id="fromDate" required>
+                    </div>
+
+                    <div>
+                        <label for="toDate">To Date</label>
+                        <input type="date" id="toDate" required>
+                    </div>
+
+                    <div>
+                        <label for="leaveReason">Leave Reason</label>
+                        <select id="leaveReason" required>
+                            <option value="">Select reason</option>
+                            <optgroup label="Medical">
+                                <option value="Fever">Fever</option>
+                                <option value="Cold / Flu">Cold / Flu</option>
+                                <option value="Hospital Visit">Hospital Visit</option>
+                                <option value="Medical Check-up">Medical Check-up</option>
+                                <option value="Injury">Injury</option>
+                                <option value="Mental Health Break">Mental Health Break</option>
+                            </optgroup>
+                            <optgroup label="Personal">
+                                <option value="Personal Work">Personal Work</option>
+                                <option value="Bank Work">Bank Work</option>
+                                <option value="Government Office Visit">Government Office Visit</option>
+                                <option value="House Maintenance">House Maintenance</option>
+                                <option value="Moving House">Moving House</option>
+                            </optgroup>
+                            <optgroup label="Family">
+                                <option value="Family Function">Family Function</option>
+                                <option value="Wedding">Wedding</option>
+                                <option value="Family Emergency">Family Emergency</option>
+                                <option value="Care for Sick Family Member">Care for Sick Family Member</option>
+                                <option value="Religious Ceremony">Religious Ceremony</option>
+                            </optgroup>
+                            <optgroup label="Casual">
+                                <option value="Not Feeling Well">Not Feeling Well</option>
+                                <option value="Need Rest">Need Rest</option>
+                                <option value="Travel">Travel</option>
+                                <option value="Urgent Personal Matter">Urgent Personal Matter</option>
+                            </optgroup>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="customReasonGroup" class="form-field hidden">
+                    <label for="customReason">Custom Reason</label>
+                    <textarea id="customReason" rows="3" placeholder="Enter your leave reason"></textarea>
+                </div>
+
+                <div class="form-field">
+                    <label for="additionalComments">Additional Comments <span class="optional-text">(Optional)</span></label>
+                    <textarea id="additionalComments" rows="4" placeholder="Add any details the approver should know"></textarea>
+                </div>
+
+                <button type="submit" id="submitLeaveButton">Submit Leave Request</button>
+            </form>
         </div>
 
-        <div class="card table-card">
-            <h3>My Admin Leaves</h3>
+        <div class="card status-list employee-notification-card">
+            <div class="section-heading">
+                <h3>Notifications</h3>
+                <span class="badge warning" id="notificationCount">0 Unread</span>
+            </div>
+            <ul id="notificationList"></ul>
+        </div>
+
+        <div class="card table-card employee-table-card employee-leave-history-card" id="leave-history">
+            <div class="section-heading">
+                <h3>My Admin Leaves</h3>
+                <span class="badge neutral">My Requests</span>
+            </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Leave Type</th>
                             <th>Start Date</th>
                             <th>End Date</th>
                             <th>Reason</th>

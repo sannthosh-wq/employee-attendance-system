@@ -325,13 +325,25 @@ def calculate_worked_time(db: Session, attendance_id: int, until_time: datetime 
 
 
 def get_shift_attendance(db: Session, employee_id: int, shift_date: date):
-    return (
+    records = (
         db.query(Attendance)
         .filter(
             Attendance.employee_id == employee_id,
             Attendance.date == shift_date,
         )
-        .first()
+        .all()
+    )
+
+    if not records:
+        return None
+
+    return max(
+        records,
+        key=lambda record: (
+            bool(record.login_time or record.logout_time or record.total_hours),
+            record.login_time or datetime.min,
+            record.id or 0,
+        ),
     )
 
 
@@ -348,16 +360,71 @@ def active_attendance_for_punch_out(
         candidate_dates.insert(0, shift_date - timedelta(days=1))
 
     for candidate_date in candidate_dates:
-        record = get_shift_attendance(db, employee_id, candidate_date)
-        if not record:
-            continue
+        records = (
+            db.query(Attendance)
+            .filter(
+                Attendance.employee_id == employee_id,
+                Attendance.date == candidate_date,
+            )
+            .all()
+        )
 
-        last_punch = latest_punch(db, record.id)
-        if last_punch and last_punch.punch_type == "in":
-            shift_start, grace_time, shift_end = get_shift_window_for_date(candidate_date, shift)
-            return record, candidate_date, shift_start, grace_time, shift_end, last_punch
+        for record in sorted(records, key=lambda item: item.id or 0, reverse=True):
+            last_punch = latest_punch(db, record.id)
+            if last_punch and last_punch.punch_type == "in":
+                shift_start, grace_time, shift_end = get_shift_window_for_date(candidate_date, shift)
+                return record, candidate_date, shift_start, grace_time, shift_end, last_punch
 
     return None, shift_date, shift_start, grace_time, shift_end, None
+
+
+def auto_close_stale_active_attendance(db: Session, now: datetime | None = None):
+    now = now or datetime.now()
+    active_records = (
+        db.query(Attendance, Employee)
+        .join(Employee, Attendance.employee_id == Employee.id)
+        .filter(
+            Attendance.login_time.isnot(None),
+            Attendance.logout_time.is_(None),
+            Employee.shift.isnot(None),
+        )
+        .all()
+    )
+    closed = 0
+
+    for record, employee in active_records:
+        last_punch = latest_punch(db, record.id)
+        if not last_punch or last_punch.punch_type != "in":
+            continue
+
+        shift = normalized_shift(employee.shift)
+        if shift not in VALID_SHIFTS:
+            continue
+
+        try:
+            _, _, shift_end = get_shift_window_for_date(record.date, shift)
+            next_shift_start, _, _ = get_shift_window_for_date(record.date + timedelta(days=1), shift)
+        except HTTPException:
+            continue
+
+        if now < next_shift_start:
+            continue
+
+        logout_time = max(shift_end, last_punch.punch_time)
+        db.add(AttendancePunch(
+            attendance_id=record.id,
+            employee_id=record.employee_id,
+            punch_type="out",
+            punch_time=logout_time,
+        ))
+        db.flush()
+
+        record.logout_time = logout_time
+        record.total_hours = calculate_worked_time(db, record.id)
+        record.left_early = False
+        closed += 1
+
+    return closed
 
 
 def approved_leave_on(db: Session, employee_id: int, target_date: date):

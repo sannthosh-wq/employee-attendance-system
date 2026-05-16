@@ -40,6 +40,7 @@ async function loadSummary() {
 
     try {
         const data = await apiRequest(`/employee/monthly-summary?month=${month}&year=${year}`);
+        setText("monthlySummaryPeriod", formatMonthYear(month, year));
         applySummaryData(data);
     } catch (error) {
         alert(error.message);
@@ -87,4 +88,12 @@ function setText(id, value) {
 function formatDayCount(value) {
     const number = Number(value || 0);
     return Number.isInteger(number) ? String(number) : number.toFixed(1);
+}
+
+function formatMonthYear(month, year) {
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    return date.toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric"
+    });
 }

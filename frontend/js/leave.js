@@ -155,7 +155,7 @@ async function applyLeave(event) {
         loadNotifications();
         loadLeaves();
         sessionStorage.setItem("leaveSuccessMessage", successMessage);
-        window.location.href = "leave.html#leave-history";
+        window.location.href = `${leavePagePath()}#leave-history`;
     } catch (error) {
         showLeaveMessage(error.message, "error");
     } finally {
@@ -346,4 +346,8 @@ function setValue(id, value) {
 function setText(id, value) {
     const element = document.getElementById(id);
     if (element) element.innerText = value;
+}
+
+function leavePagePath() {
+    return window.location.pathname.endsWith("/admin-leave.html") ? "admin-leave.html" : "leave.html";
 }
